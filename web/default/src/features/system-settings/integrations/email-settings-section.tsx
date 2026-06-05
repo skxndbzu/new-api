@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { BRAND_CONFIG } from '@/config/brand'
 import { useTranslation } from 'react-i18next'
 import {
   Form,
@@ -271,7 +272,7 @@ export function EmailSettingsSection({
                 <FormControl>
                   <Input
                     autoComplete='off'
-                    placeholder={t('New API &lt;noreply@example.com&gt;')}
+                    placeholder={`${BRAND_CONFIG.brandNameEn} <noreply@example.com>`}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />

@@ -431,7 +431,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                     <FormLabel>{t('API URL')}</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={t('https://api.example.com')}
+                        placeholder={t('https://bluebirdapi.com')}
                         {...field}
                       />
                     </FormControl>

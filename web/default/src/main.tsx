@@ -25,6 +25,7 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { BRAND_CONFIG, resolveBrandLogoPath } from '@/config/brand'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
@@ -118,11 +119,21 @@ const rootElement = document.getElementById('root')!
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
     const apply = (name: string) => {
-      document.title = name
+      const title =
+        name === BRAND_CONFIG.brandName || name === 'New API'
+          ? BRAND_CONFIG.browserTitle
+          : name
+      document.title = title
       const metaTitle = document.querySelector(
         'meta[name="title"]'
       ) as HTMLMetaElement | null
-      if (metaTitle) metaTitle.setAttribute('content', name)
+      if (metaTitle) metaTitle.setAttribute('content', title)
+      const metaDescription = document.querySelector(
+        'meta[name="description"]'
+      ) as HTMLMetaElement | null
+      if (metaDescription) {
+        metaDescription.setAttribute('content', BRAND_CONFIG.description)
+      }
     }
     // Cache-first
     try {
@@ -130,7 +141,7 @@ const rootElement = document.getElementById('root')!
       if (saved) {
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
-        if (s?.logo) applyFaviconToDom(s.logo)
+        if (s?.logo) applyFaviconToDom(resolveBrandLogoPath(s.logo))
       }
     } catch {
       /* empty */
@@ -146,7 +157,7 @@ const rootElement = document.getElementById('root')!
             /* empty */
           }
         }
-        if (s?.logo) applyFaviconToDom(s.logo as string)
+        if (s?.logo) applyFaviconToDom(resolveBrandLogoPath(s.logo as string))
       })
       .catch(() => {
         /* empty */

@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { BRAND_CONFIG } from '@/config/brand'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -223,7 +224,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                 <FormLabel>{t('Relying Party Display Name')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder={t('e.g. New API Console')}
+                    placeholder={`e.g. ${BRAND_CONFIG.brandNameEn} Console`}
                     value={field.value ?? ''}
                     onChange={(event) => field.onChange(event.target.value)}
                     name={field.name}

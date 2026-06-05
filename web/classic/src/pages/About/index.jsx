@@ -26,6 +26,7 @@ import {
   IllustrationConstructionDark,
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
+import { BRAND_CONFIG } from '../../config/brand';
 
 const About = () => {
   const { t } = useTranslation();
@@ -62,7 +63,7 @@ const About = () => {
   const customDescription = (
     <div style={{ textAlign: 'center' }}>
       <p>{t('可在设置页面设置关于内容，支持 HTML & Markdown')}</p>
-      {t('New API项目仓库地址：')}
+      {BRAND_CONFIG.openSourceNotice}{' '}
       <a
         href='https://github.com/QuantumNous/new-api'
         target='_blank'
@@ -78,7 +79,7 @@ const About = () => {
           rel='noopener noreferrer'
           className='!text-semi-color-primary'
         >
-          NewAPI
+          New API
         </a>{' '}
         {t('© {{currentYear}}', { currentYear })}{' '}
         <a

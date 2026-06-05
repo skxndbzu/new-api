@@ -17,26 +17,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type SVGProps } from 'react'
+import { BRAND_CONFIG } from '@/config/brand'
 import { cn } from '@/lib/utils'
 
 export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      id='newapi-logo'
-      viewBox='0 0 24 24'
+      id='qingniao-logo'
+      viewBox='0 0 256 256'
       xmlns='http://www.w3.org/2000/svg'
-      height='24'
-      width='24'
+      height='256'
+      width='256'
       fill='none'
-      stroke='currentColor'
-      strokeWidth='2'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       className={cn('size-6', className)}
       {...props}
     >
-      <title>New API</title>
-      <path d='M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3' />
+      <title>{BRAND_CONFIG.brandNameEn}</title>
+      <image
+        href={BRAND_CONFIG.logoPath}
+        width='256'
+        height='256'
+        preserveAspectRatio='xMidYMid meet'
+      />
     </svg>
   )
 }

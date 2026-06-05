@@ -1436,7 +1436,7 @@ export function ChannelMutateDrawer({
                             <FormControl>
                               <Input
                                 placeholder={t(
-                                  'e.g., https://api.example.com (path before /suno)'
+                                  'e.g., https://bluebirdapi.com (path before /suno)'
                                 )}
                                 {...field}
                               />

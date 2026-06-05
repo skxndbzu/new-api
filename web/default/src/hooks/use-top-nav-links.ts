@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
+import { resolveBrandDocsPath } from '@/config/brand'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
@@ -54,8 +55,7 @@ export function useTopNavLinks(): TopNavLink[] {
     )
   }, [status])
 
-  // Documentation link (may be external)
-  const docsLink: string | undefined = status?.docs_link as string | undefined
+  const docsLink = resolveBrandDocsPath(status?.docs_link as string | undefined)
 
   const isAuthed = !!auth?.user
 
@@ -85,18 +85,17 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
   }
 
-  // Docs (supports external links)
+  // Docs are served outside the SPA router, even when hosted on the same origin.
   if (modules?.docs !== false) {
-    if (docsLink) {
-      links.push({ title: t('Docs'), href: docsLink, external: true })
-    } else {
-      links.push({ title: t('Docs'), href: '/docs' })
-    }
+    links.push({ title: t('Docs'), href: docsLink, external: true })
   }
 
-  // About
+  // Contact
   if (modules?.about !== false) {
-    links.push({ title: t('About'), href: '/about' })
+    links.push({
+      title: t('footer.columns.about.links.contact'),
+      href: '/about',
+    })
   }
 
   return links

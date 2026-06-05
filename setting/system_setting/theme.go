@@ -10,7 +10,8 @@ type ThemeSettings struct {
 }
 
 var themeSettings = ThemeSettings{
-	Frontend: "classic",
+	// 这里控制使用哪个前端，建议使用default新版前端，还可选 classic 旧版前端
+	Frontend: "default",
 }
 
 func init() {

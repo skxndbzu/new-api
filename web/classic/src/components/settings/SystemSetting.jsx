@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -859,7 +859,7 @@ const SystemSetting = () => {
                         style={{ display: 'block', marginBottom: 8 }}
                       >
                         {t(
-                          '支持通配符格式，如：example.com, *.api.example.com',
+                          '支持通配符格式，如：example.com, *.bluebirdapi.com',
                         )}
                       </Text>
                       <Radio.Group

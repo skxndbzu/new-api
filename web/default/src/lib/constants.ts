@@ -19,10 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Application-wide constants
  */
+import { BRAND_CONFIG } from '@/config/brand'
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = 'New API'
-export const DEFAULT_LOGO = '/logo.png'
+export const DEFAULT_SYSTEM_NAME = BRAND_CONFIG.brandName
+export const DEFAULT_LOGO = BRAND_CONFIG.logoPath
 
 // LocalStorage Keys
 export const STORAGE_KEYS = {

@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 import {
   API,
   getLogo,
-  getSystemName,
+  getBrowserTitle,
   showError,
   setStatusData,
 } from '../../helpers';
@@ -104,9 +104,9 @@ const PageLayout = () => {
   useEffect(() => {
     loadUser();
     loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
+    let browserTitle = getBrowserTitle();
+    if (browserTitle) {
+      document.title = browserTitle;
     }
     let logo = getLogo();
     if (logo) {

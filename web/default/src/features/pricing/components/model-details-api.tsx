@@ -463,7 +463,7 @@ function CodeSamplesSection(props: {
       return candidate.replace(/\/$/, '')
     }
     if (typeof window !== 'undefined') return window.location.origin
-    return 'https://api.example.com'
+    return 'https://bluebirdapi.com'
   }, [status])
 
   const endpoints = useMemo(() => {

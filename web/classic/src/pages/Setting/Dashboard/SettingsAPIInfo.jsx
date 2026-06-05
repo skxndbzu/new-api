@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -456,7 +456,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
           <Form.Input
             field='url'
             label={t('API地址')}
-            placeholder='https://api.example.com'
+            placeholder='https://bluebirdapi.com'
             rules={[{ required: true, message: t('请输入API地址') }]}
             onChange={(value) => setApiForm({ ...apiForm, url: value })}
           />

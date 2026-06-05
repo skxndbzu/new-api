@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useCallback } from 'react'
+import { resolveBrandLogoPath } from '@/config/brand'
 import {
   useSystemConfigStore,
   type CurrencyConfig,
@@ -91,9 +92,17 @@ export function mapStatusDataToConfig(
     ),
   }
 
+  const statusSystemName = data.system_name?.trim()
+  const systemName =
+    !statusSystemName ||
+    statusSystemName === 'New API' ||
+    statusSystemName === 'NewAPI'
+      ? DEFAULT_SYSTEM_NAME
+      : statusSystemName
+
   return {
-    systemName: data.system_name || DEFAULT_SYSTEM_NAME,
-    logo: data.logo || DEFAULT_LOGO,
+    systemName,
+    logo: resolveBrandLogoPath(data.logo),
     footerHtml: data.footer_html,
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
@@ -171,7 +180,7 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
 
   // Preload logo image when URL changes
   useEffect(() => {
-    const { logo } = config
+    const logo = resolveBrandLogoPath(config.logo)
 
     // Skip if logo is already loaded
     if (!logo || logo === loadedLogoUrl) return
@@ -197,7 +206,9 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
 
   return {
     ...config,
+    logo: resolveBrandLogoPath(config.logo),
     loading,
-    logoLoaded: config.logo === loadedLogoUrl && !!loadedLogoUrl,
+    logoLoaded:
+      resolveBrandLogoPath(config.logo) === loadedLogoUrl && !!loadedLogoUrl,
   }
 }

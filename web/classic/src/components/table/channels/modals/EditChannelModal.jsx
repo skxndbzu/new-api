@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -3404,7 +3404,7 @@ const EditChannelModal = (props) => {
                               '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
                             )}
                             placeholder={t(
-                              '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
+                              '请输入到 /suno 前的路径，通常就是域名，例如：https://bluebirdapi.com',
                             )}
                             onChange={(value) =>
                               handleInputChange('base_url', value)

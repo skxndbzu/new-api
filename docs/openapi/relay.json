@@ -1875,7 +1875,7 @@
       "get": {
         "summary": "实时 WebSocket 连接",
         "deprecated": false,
-        "description": "建立 WebSocket 连接用于实时对话。\n\n**注意**: 这是一个 WebSocket 端点，需要使用 WebSocket 协议连接。\n\n连接 URL 示例: `wss://api.example.com/v1/realtime?model=gpt-4o-realtime`\n",
+        "description": "建立 WebSocket 连接用于实时对话。\n\n**注意**: 这是一个 WebSocket 端点，需要使用 WebSocket 协议连接。\n\n连接 URL 示例: `wss://bluebirdapi.com/v1/realtime?model=gpt-4o-realtime`\n",
         "operationId": "createRealtimeSession",
         "tags": [
           "Realtime"
