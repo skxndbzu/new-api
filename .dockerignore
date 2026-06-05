@@ -1,10 +1,14 @@
 .github
 .git
 *.md
+!qingniao-docs/*.md
+!qingniao-docs/**/*.md
 .vscode
 .gitignore
 Makefile
 docs
+!qingniao-docs/docs
+!qingniao-docs/docs/**
 .eslintcache
 .gocache
 /web/node_modules
