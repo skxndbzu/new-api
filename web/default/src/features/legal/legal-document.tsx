@@ -33,6 +33,28 @@ type LegalDocumentProps = {
   emptyMessage: string
 }
 
+function selectLocalizedContent(
+  value: LegalDocumentResponse['data'],
+  language: string
+) {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+
+  const normalizedLanguage = language.toLowerCase()
+  const languageCandidates = normalizedLanguage.startsWith('zh')
+    ? ['zh', 'zh-CN', 'zh_CN', 'cn', 'en']
+    : ['en', 'en-US', 'en_US', 'zh']
+
+  for (const key of languageCandidates) {
+    const content = value[key]
+    if (typeof content === 'string' && content.trim().length > 0) {
+      return content
+    }
+  }
+
+  return Object.values(value).find((content) => content?.trim()) ?? ''
+}
+
 function isValidUrl(value: string) {
   try {
     const url = new URL(value)
@@ -52,17 +74,22 @@ export function LegalDocument({
   fetchDocument,
   emptyMessage,
 }: LegalDocumentProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data, isLoading } = useQuery({
     queryKey: [queryKey],
     queryFn: fetchDocument,
     staleTime: 10 * 60 * 1000,
   })
 
-  const rawContent = data?.data?.trim() ?? ''
+  const rawContent = selectLocalizedContent(
+    data?.data,
+    i18n.resolvedLanguage || i18n.language || 'zh'
+  ).trim()
   const hasContent = rawContent.length > 0
   const isUrl = hasContent && isValidUrl(rawContent)
   const isHtml = hasContent && !isUrl && isLikelyHtml(rawContent)
+  const isFullLegalDocument =
+    isHtml && rawContent.includes('data-legal-document')
   const success = data?.success ?? false
 
   if (isLoading) {
@@ -135,9 +162,11 @@ export function LegalDocument({
   return (
     <PublicLayout>
       <div className='mx-auto max-w-4xl space-y-6 py-12'>
-        <div className='space-y-2'>
-          <h1 className='text-3xl font-semibold tracking-tight'>{title}</h1>
-        </div>
+        {!isFullLegalDocument && (
+          <div className='space-y-2'>
+            <h1 className='text-3xl font-semibold tracking-tight'>{title}</h1>
+          </div>
+        )}
 
         {isHtml ? (
           <div

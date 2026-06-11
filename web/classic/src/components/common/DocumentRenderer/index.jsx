@@ -46,6 +46,25 @@ const isHtmlContent = (content) => {
   return htmlTagRegex.test(content);
 };
 
+const selectLocalizedContent = (value, language) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+
+  const normalizedLanguage = (language || '').toLowerCase();
+  const languageCandidates = normalizedLanguage.startsWith('zh')
+    ? ['zh', 'zh-CN', 'zh_CN', 'cn', 'en']
+    : ['en', 'en-US', 'en_US', 'zh'];
+
+  for (const key of languageCandidates) {
+    const content = value[key];
+    if (typeof content === 'string' && content.trim()) {
+      return content;
+    }
+  }
+
+  return Object.values(value).find((content) => content?.trim()) || '';
+};
+
 // Parse HTML content and extract inline styles.
 const sanitizeHtml = (html) => {
   const tempDiv = document.createElement('div');
@@ -69,12 +88,14 @@ const sanitizeHtml = (html) => {
  * @param {string} emptyMessage - 空内容时的提示消息
  */
 const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
 
   const loadContent = async () => {
-    const cachedContent = localStorage.getItem(cacheKey) || '';
+    const language = i18n.resolvedLanguage || i18n.language || 'zh';
+    const localizedCacheKey = `${cacheKey}_${language}`;
+    const cachedContent = localStorage.getItem(localizedCacheKey) || '';
     if (cachedContent) {
       setContent(cachedContent);
       setLoading(false);
@@ -84,8 +105,9 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
       const res = await API.get(apiEndpoint);
       const { success, message, data } = res.data;
       if (success && data) {
-        setContent(data);
-        localStorage.setItem(cacheKey, data);
+        const nextContent = selectLocalizedContent(data, language);
+        setContent(nextContent);
+        localStorage.setItem(localizedCacheKey, nextContent);
       } else {
         if (!cachedContent) {
           showError(message || emptyMessage);
@@ -108,10 +130,12 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
     }
     return sanitizeHtml(content);
   }, [content]);
+  const isFullLegalDocument =
+    isHtmlContent(content) && content.includes('data-legal-document');
 
   useEffect(() => {
     loadContent();
-  }, []);
+  }, [i18n.resolvedLanguage, i18n.language]);
 
   // 处理HTML样式注入
   useEffect(() => {
@@ -199,9 +223,11 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
       <div className='min-h-screen bg-gray-50'>
         <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
           <div className='bg-white rounded-lg shadow-sm p-8'>
-            <Title heading={2} className='text-center mb-8'>
-              {title}
-            </Title>
+            {!isFullLegalDocument && (
+              <Title heading={2} className='text-center mb-8'>
+                {title}
+              </Title>
+            )}
             <div
               className='prose prose-lg max-w-none'
               dangerouslySetInnerHTML={{ __html: htmlPayload.content }}

@@ -19,5 +19,5 @@ For commercial licensing, please contact support@quantumnous.com
 export type LegalDocumentResponse = {
   success: boolean
   message?: string
-  data?: string
+  data?: string | Record<string, string>
 }
