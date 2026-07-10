@@ -19,11 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { FileWarning } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { PublicLayout } from '@/components/layout'
+import { RichContent } from '@/components/rich-content'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Markdown } from '@/components/ui/markdown'
 import { Skeleton } from '@/components/ui/skeleton'
-import { PublicLayout } from '@/components/layout'
+import { isHttpUrl, isLikelyHtml } from '@/lib/content-format'
+
 import type { LegalDocumentResponse } from './types'
 
 type LegalDocumentProps = {
@@ -55,19 +58,6 @@ function selectLocalizedContent(
   return Object.values(value).find((content) => content?.trim()) ?? ''
 }
 
-function isValidUrl(value: string) {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function isLikelyHtml(value: string) {
-  return /<\/?[a-z][\s\S]*>/i.test(value)
-}
-
 export function LegalDocument({
   title,
   queryKey,
@@ -86,10 +76,8 @@ export function LegalDocument({
     i18n.resolvedLanguage || i18n.language || 'zh'
   ).trim()
   const hasContent = rawContent.length > 0
-  const isUrl = hasContent && isValidUrl(rawContent)
-  const isHtml = hasContent && !isUrl && isLikelyHtml(rawContent)
-  const isFullLegalDocument =
-    isHtml && rawContent.includes('data-legal-document')
+  const isUrl = hasContent && isHttpUrl(rawContent)
+  const contentIsHtml = hasContent && isLikelyHtml(rawContent)
   const success = data?.success ?? false
 
   if (isLoading) {
@@ -159,25 +147,25 @@ export function LegalDocument({
     )
   }
 
+  if (contentIsHtml) {
+    return (
+      <PublicLayout showMainContainer={false}>
+        <RichContent mode='html' htmlVariant='isolated' content={rawContent} />
+      </PublicLayout>
+    )
+  }
+
   return (
     <PublicLayout>
       <div className='mx-auto max-w-4xl space-y-6 py-12'>
-        {!isFullLegalDocument && (
-          <div className='space-y-2'>
-            <h1 className='text-3xl font-semibold tracking-tight'>{title}</h1>
-          </div>
-        )}
-
-        {isHtml ? (
-          <div
-            className='prose prose-neutral dark:prose-invert max-w-none'
-            dangerouslySetInnerHTML={{ __html: rawContent }}
-          />
-        ) : (
-          <Markdown className='prose-neutral dark:prose-invert max-w-none'>
-            {rawContent}
-          </Markdown>
-        )}
+        <div className='space-y-2'>
+          <h1 className='text-3xl font-semibold tracking-tight'>{title}</h1>
+        </div>
+        <RichContent
+          mode='markdown'
+          content={rawContent}
+          className='prose-neutral dark:prose-invert max-w-none'
+        />
       </div>
     </PublicLayout>
   )
