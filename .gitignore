@@ -12,6 +12,10 @@ web/default/dist
 web/classic/dist
 web/node_modules
 web/dist
+.tmp/
+bin/go_build_*
+qingniao-docs/node_modules/
+web/default/src/i18n/locales/_reports/*.untranslated.json
 .env
 one-api
 new-api
