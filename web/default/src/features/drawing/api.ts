@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+
 import type {
   GroupOption,
   ImageGenerationRequest,
@@ -69,7 +70,6 @@ export async function editImage({
   model,
   group,
   prompt,
-  size,
   quality,
   n,
   image,
@@ -77,7 +77,6 @@ export async function editImage({
   const formData = new FormData()
   formData.append('model', model)
   formData.append('prompt', prompt)
-  formData.append('size', size)
   formData.append('n', String(n))
   formData.append('image', image)
 

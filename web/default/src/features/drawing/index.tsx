@@ -1,3 +1,13 @@
+import { useQuery } from '@tanstack/react-query'
+import {
+  Download,
+  ExternalLink,
+  ImageIcon,
+  Loader2,
+  PencilLine,
+  Sparkles,
+  Upload,
+} from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,19 +27,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import {
-  Download,
-  ExternalLink,
-  ImageIcon,
-  Loader2,
-  PencilLine,
-  Sparkles,
-  Upload,
-} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
+
+import { CopyButton } from '@/components/copy-button'
+import { GroupSelector, ModelSelector } from '@/components/model-group-selector'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,7 +43,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { GroupSelector, ModelSelector } from '@/components/model-group-selector'
+import { cn } from '@/lib/utils'
+
 import { editImage, generateImage, getUserGroups, getUserModels } from './api'
 import type {
   ImageGenerationRequest,
@@ -49,27 +52,7 @@ import type {
   ImageResult,
   ModelOption,
   QualityOption,
-  RatioOption,
-  ResolutionOption,
 } from './types'
-
-const RATIO_OPTIONS: Array<{ value: RatioOption; label: string }> = [
-  { value: '1:1', label: '1:1' },
-  { value: '16:9', label: '16:9' },
-  { value: '9:16', label: '9:16' },
-  { value: '4:3', label: '4:3' },
-  { value: '3:4', label: '3:4' },
-]
-
-const RESOLUTION_OPTIONS: ResolutionOption[] = ['1k', '2k', '4k']
-
-const SIZE_MAP: Record<RatioOption, Record<ResolutionOption, string>> = {
-  '1:1': { '1k': '1024x1024', '2k': '2048x2048', '4k': '4096x4096' },
-  '16:9': { '1k': '1792x1024', '2k': '3584x2048', '4k': '7168x4096' },
-  '9:16': { '1k': '1024x1792', '2k': '2048x3584', '4k': '4096x7168' },
-  '4:3': { '1k': '1365x1024', '2k': '2730x2048', '4k': '5460x4096' },
-  '3:4': { '1k': '1024x1365', '2k': '2048x2730', '4k': '4096x5460' },
-}
 
 const IMAGE_MODEL_KEYWORDS = [
   'gpt-image-2',
@@ -80,6 +63,8 @@ const IMAGE_MODEL_KEYWORDS = [
   'flux',
   'image',
 ]
+
+type DrawingResult = ImageResult & { resultId: string }
 
 const getImageSrc = (image: ImageResult) =>
   image.url ?? (image.b64_json ? `data:image/png;base64,${image.b64_json}` : '')
@@ -101,12 +86,10 @@ export function Drawing() {
   const [model, setModel] = useState('')
   const [group, setGroup] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [ratio, setRatio] = useState<RatioOption>('1:1')
-  const [resolution, setResolution] = useState<ResolutionOption>('1k')
   const [quality, setQuality] = useState<QualityOption>('auto')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
-  const [results, setResults] = useState<ImageResult[]>([])
+  const [results, setResults] = useState<DrawingResult[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { data: models = [] } = useQuery({
@@ -116,7 +99,9 @@ export function Drawing() {
         return await getUserModels()
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : t('Failed to load image models')
+          error instanceof Error
+            ? error.message
+            : t('Failed to load image models')
         )
         return []
       }
@@ -130,14 +115,14 @@ export function Drawing() {
         return await getUserGroups()
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : t('Failed to load image groups')
+          error instanceof Error
+            ? error.message
+            : t('Failed to load image groups')
         )
         return []
       }
     },
   })
-
-  const size = SIZE_MAP[ratio][resolution]
 
   const imageModels = useMemo(() => {
     const filtered = models.filter((item) => {
@@ -149,7 +134,10 @@ export function Drawing() {
   }, [models])
 
   useEffect(() => {
-    if (imageModels.length === 0 || imageModels.some((item) => item.value === model)) {
+    if (
+      imageModels.length === 0 ||
+      imageModels.some((item) => item.value === model)
+    ) {
       return
     }
 
@@ -161,7 +149,9 @@ export function Drawing() {
       return
     }
 
-    setGroup(groups.find((item) => item.value === 'default')?.value ?? groups[0].value)
+    setGroup(
+      groups.find((item) => item.value === 'default')?.value ?? groups[0].value
+    )
   }, [group, groups])
 
   useEffect(() => {
@@ -194,7 +184,6 @@ export function Drawing() {
       model,
       group,
       prompt: trimmedPrompt,
-      size,
       n: 1,
       ...(quality === 'auto' ? {} : { quality }),
     }
@@ -211,12 +200,20 @@ export function Drawing() {
       }
 
       const nextResults = response.data ?? []
-      setResults(nextResults)
+      const responseId = response.created ?? Date.now()
+      setResults(
+        nextResults.map((image, imageIndex) => ({
+          ...image,
+          resultId: `${responseId}-${imageIndex}`,
+        }))
+      )
       if (nextResults.length === 0) {
         toast.warning(t('The image model returned no images.'))
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('Image request failed'))
+      toast.error(
+        error instanceof Error ? error.message : t('Image request failed')
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -266,7 +263,7 @@ export function Drawing() {
 
         <div className='grid gap-4 lg:grid-cols-[minmax(320px,420px)_1fr]'>
           <section className='bg-card flex flex-col gap-5 rounded-lg border p-4 shadow-sm'>
-            <div className='grid grid-cols-2 rounded-lg bg-muted p-1'>
+            <div className='bg-muted grid grid-cols-2 rounded-lg p-1'>
               {(['generate', 'edit'] as ImageMode[]).map((item) => (
                 <Button
                   key={item}
@@ -293,7 +290,9 @@ export function Drawing() {
                 id='drawing-prompt'
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder={t('Describe the image you want to create or edit.')}
+                placeholder={t(
+                  'Describe the image you want to create or edit.'
+                )}
                 className='min-h-36 resize-none'
                 disabled={isSubmitting}
               />
@@ -318,9 +317,13 @@ export function Drawing() {
                   ) : (
                     <>
                       <Upload className='text-muted-foreground size-6' />
-                      <span className='text-sm font-medium'>{t('Upload image')}</span>
+                      <span className='text-sm font-medium'>
+                        {t('Upload image')}
+                      </span>
                       <span className='text-muted-foreground text-xs'>
-                        {t('The model will edit this image based on your prompt.')}
+                        {t(
+                          'The model will edit this image based on your prompt.'
+                        )}
                       </span>
                     </>
                   )}
@@ -331,69 +334,29 @@ export function Drawing() {
                   accept='image/*'
                   className='sr-only'
                   disabled={isSubmitting}
-                  onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
+                  onChange={(event) =>
+                    setImageFile(event.target.files?.[0] ?? null)
+                  }
                 />
               </div>
             )}
 
             <div className='space-y-2'>
-              <Label>{t('Aspect ratio')}</Label>
-              <div className='grid grid-cols-5 gap-2'>
-                {RATIO_OPTIONS.map((item) => (
-                  <Button
-                    key={item.value}
-                    type='button'
-                    variant={ratio === item.value ? 'default' : 'outline'}
-                    size='sm'
-                    onClick={() => setRatio(item.value)}
-                    disabled={isSubmitting}
-                  >
-                    {item.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className='grid gap-4 sm:grid-cols-2'>
-              <div className='space-y-2'>
-                <Label>{t('Resolution')}</Label>
-                <div className='grid grid-cols-3 gap-2'>
-                  {RESOLUTION_OPTIONS.map((item) => (
-                    <Button
-                      key={item}
-                      type='button'
-                      variant={resolution === item ? 'default' : 'outline'}
-                      size='sm'
-                      onClick={() => setResolution(item)}
-                      disabled={isSubmitting}
-                    >
-                      {item.toUpperCase()}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className='space-y-2'>
-                <Label>{t('Quality')}</Label>
-                <Select
-                  value={quality}
-                  onValueChange={(value) => setQuality(value as QualityOption)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger className='w-full'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='auto'>{t('Auto')}</SelectItem>
-                    <SelectItem value='standard'>{t('Standard')}</SelectItem>
-                    <SelectItem value='hd'>{t('HD')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className='text-muted-foreground rounded-md bg-muted px-3 py-2 text-xs'>
-              {t('Request size')}: {size}
+              <Label>{t('Quality')}</Label>
+              <Select
+                value={quality}
+                onValueChange={(value) => setQuality(value as QualityOption)}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='auto'>{t('Auto')}</SelectItem>
+                  <SelectItem value='standard'>{t('Standard')}</SelectItem>
+                  <SelectItem value='hd'>{t('HD')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <Button
@@ -430,28 +393,42 @@ export function Drawing() {
                   const src = getImageSrc(image)
                   return (
                     <article
-                      key={`${src}-${index}`}
-                      className='overflow-hidden rounded-lg border bg-background'
+                      key={image.resultId}
+                      className='bg-background overflow-hidden rounded-lg border'
                     >
                       {src ? (
                         <img
                           src={src}
                           alt={t('Generated image')}
-                          className='aspect-square w-full bg-muted object-contain'
+                          className='bg-muted aspect-square w-full object-contain'
                         />
                       ) : (
-                        <div className='flex aspect-square w-full items-center justify-center bg-muted'>
+                        <div className='bg-muted flex aspect-square w-full items-center justify-center'>
                           <ImageIcon className='text-muted-foreground size-8' />
                         </div>
                       )}
                       <div className='space-y-3 p-3'>
                         {image.revised_prompt && (
-                          <p className='text-muted-foreground line-clamp-3 text-xs'>
-                            <span className='text-foreground font-medium'>
-                              {t('Revised prompt')}:{' '}
-                            </span>
-                            {image.revised_prompt}
-                          </p>
+                          <div className='bg-muted/50 flex flex-col gap-2 rounded-md border p-3'>
+                            <div className='flex flex-wrap items-center justify-between gap-2'>
+                              <p className='text-sm font-medium'>
+                                {t('Revised prompt')}
+                              </p>
+                              <CopyButton
+                                value={image.revised_prompt}
+                                variant='outline'
+                                size='sm'
+                                tooltip={t('Copy prompt')}
+                                successTooltip={t('Copied!')}
+                                aria-label={t('Copy prompt')}
+                              >
+                                {t('Copy prompt')}
+                              </CopyButton>
+                            </div>
+                            <p className='text-muted-foreground text-xs leading-relaxed break-words whitespace-pre-wrap'>
+                              {image.revised_prompt}
+                            </p>
+                          </div>
                         )}
                         <div className='flex items-center justify-end gap-2'>
                           {image.url && (
@@ -459,7 +436,11 @@ export function Drawing() {
                               variant='outline'
                               size='sm'
                               render={
-                                <a href={image.url} target='_blank' rel='noreferrer' />
+                                <a
+                                  href={image.url}
+                                  target='_blank'
+                                  rel='noreferrer'
+                                />
                               }
                             >
                               <ExternalLink className='size-4' />

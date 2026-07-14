@@ -17,8 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export type ImageMode = 'generate' | 'edit'
-export type RatioOption = '1:1' | '16:9' | '9:16' | '4:3' | '3:4'
-export type ResolutionOption = '1k' | '2k' | '4k'
 export type QualityOption = 'auto' | 'standard' | 'hd'
 
 export interface ModelOption {
@@ -43,7 +41,6 @@ export interface ImageGenerationRequest {
   model: string
   group?: string
   prompt: string
-  size: string
   quality?: QualityOption
   n: number
 }
