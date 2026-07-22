@@ -48,7 +48,10 @@ import {
   BACKUP_CODE_LENGTH,
 } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
-import { saveUserId } from '@/features/auth/lib/storage'
+import {
+  markLoginWelcomePending,
+  saveUserId,
+} from '@/features/auth/lib/storage'
 import {
   isValidOTP,
   isValidBackupCode,
@@ -109,6 +112,7 @@ export function OtpForm({ className, ...props }: OtpFormProps) {
 
       // Update auth store
       auth.setUser(userData as User)
+      markLoginWelcomePending()
 
       // Store user ID in localStorage for compatibility
       if (userData.id) {

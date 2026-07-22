@@ -22,6 +22,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { wechatLoginByCode } from '@/features/auth/api'
+import { markLoginWelcomePending } from '@/features/auth/lib/storage'
 import { getSelf } from '@/lib/api'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -43,6 +44,7 @@ function OAuthComponent() {
         const res = await getSelf()
         if (res?.success) {
           useAuthStore.getState().auth.setUser(res.data as AuthUser)
+          markLoginWelcomePending()
           const target = search?.redirect || '/dashboard'
           navigate({ to: target, replace: true })
           return

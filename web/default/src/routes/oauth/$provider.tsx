@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import { markLoginWelcomePending } from '@/features/auth/lib/storage'
 import { api, getSelf } from '@/lib/api'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -145,6 +146,7 @@ function OAuthCallback() {
 
       const redirectAfterLogin = (target?: string) => {
         const to = target || search?.redirect || '/dashboard'
+        markLoginWelcomePending()
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }

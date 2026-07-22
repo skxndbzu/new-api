@@ -28,6 +28,7 @@ const STORAGE_KEYS = {
   USER_ID: 'uid',
   AFFILIATE: 'aff',
   STATUS: 'status',
+  LOGIN_WELCOME_PENDING: 'login-welcome-pending',
 } as const
 
 // ============================================================================
@@ -102,5 +103,42 @@ export function saveAffiliateCode(code: string): void {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save affiliate code:', error)
+  }
+}
+
+// ============================================================================
+// Post-login welcome dialog
+// ============================================================================
+
+export function markLoginWelcomePending(): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(STORAGE_KEYS.LOGIN_WELCOME_PENDING, 'true')
+  } catch {
+    // The welcome dialog is non-critical when browser storage is unavailable.
+  }
+}
+
+export function hasPendingLoginWelcome(): boolean {
+  if (typeof window === 'undefined') return false
+
+  try {
+    return (
+      window.sessionStorage.getItem(STORAGE_KEYS.LOGIN_WELCOME_PENDING) ===
+      'true'
+    )
+  } catch {
+    return false
+  }
+}
+
+export function clearPendingLoginWelcome(): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEYS.LOGIN_WELCOME_PENDING)
+  } catch {
+    // The welcome dialog is non-critical when browser storage is unavailable.
   }
 }

@@ -23,7 +23,7 @@ import type { User } from '@/features/users/types'
 import { getSelf } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { saveUserId } from '../lib/storage'
+import { markLoginWelcomePending, saveUserId } from '../lib/storage'
 
 function getSavedLanguage(user: User): string | undefined {
   const userData = user as Record<string, unknown>
@@ -70,6 +70,7 @@ export function useAuthRedirect() {
       if (self?.success && self.data) {
         const user = self.data as User
         auth.setUser(user)
+        markLoginWelcomePending()
 
         // Update user ID if not already set
         if (user.id) {
