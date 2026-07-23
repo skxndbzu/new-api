@@ -91,13 +91,14 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Docs'), href: docsLink, external: true })
   }
 
-  // Contact
+  /* Temporarily hide the Contact navigation entry.
   if (modules?.about !== false) {
     links.push({
       title: t('footer.columns.about.links.contact'),
       href: '/about',
     })
   }
+  */
 
   return links
 }

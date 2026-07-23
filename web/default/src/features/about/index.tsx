@@ -157,10 +157,9 @@ export function About() {
   }
 
   if (!hasContent) {
+    // Temporarily hide the default contact-information page.
     return (
-      <PublicLayout>
-        <ContactAboutContent />
-      </PublicLayout>
+      <PublicLayout />
     )
   }
 
