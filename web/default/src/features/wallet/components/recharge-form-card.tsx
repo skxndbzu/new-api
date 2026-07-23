@@ -199,17 +199,38 @@ export function RechargeFormCard({
       iconTone='success'
       disableHoverEffect
       action={
-        onOpenBilling ? (
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={onOpenBilling}
-            className='w-full gap-2 sm:w-auto'
-          >
-            <Receipt className='h-4 w-4' />
-            {t('Order History')}
-          </Button>
-        ) : null
+        <div className='grid w-full gap-2 sm:grid-cols-[auto_auto] sm:items-start'>
+          <div className='grid gap-1.5'>
+            <Button
+              size='lg'
+              render={
+                <a
+                  href='https://pay.ldxp.cn/shop/GJUZH2PN'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                />
+              }
+            >
+              <WalletCards data-icon='inline-start' />
+              {t('Go to Top-up Store')}
+              <ExternalLink data-icon='inline-end' />
+            </Button>
+            <p className='text-muted-foreground text-xs'>
+              {t('Open the top-up store to recharge your account')}
+            </p>
+          </div>
+          {onOpenBilling && (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={onOpenBilling}
+              className='sm:self-start'
+            >
+              <Receipt data-icon='inline-start' />
+              {t('Order History')}
+            </Button>
+          )}
+        </div>
       }
       contentClassName='space-y-4 sm:space-y-6'
     >
