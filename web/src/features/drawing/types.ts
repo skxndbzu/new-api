@@ -18,6 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 export type ImageMode = 'generate' | 'edit'
 export type QualityOption = 'auto' | 'standard' | 'hd'
+export type ImageAspectRatio =
+  | '1:1'
+  | '2:3'
+  | '3:2'
+  | '3:4'
+  | '4:3'
+  | '9:16'
+  | '16:9'
+  | '4:5'
+  | '5:4'
+  | '1:2'
+  | '2:1'
 
 export interface ModelOption {
   label: string
@@ -34,6 +46,7 @@ export interface GroupOption {
 export interface ImageResult {
   url?: string
   b64_json?: string
+  prompt?: string
   revised_prompt?: string
 }
 
@@ -51,4 +64,21 @@ export interface ImageResponse {
   error?: {
     message?: string
   }
+}
+
+export interface ImageGenerationResponse extends ImageResponse {
+  responseId: string
+}
+
+export interface ImageGenerationProgress {
+  image: ImageResult
+  imageIndex: number
+  responseId: string
+}
+
+export interface ImageGenerationBatchProgress {
+  total: number
+  succeeded: number
+  failed: number
+  elapsedMs: number
 }

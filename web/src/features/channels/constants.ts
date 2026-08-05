@@ -22,6 +22,7 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 
 export const CHANNEL_TYPE_NEW_API = 60
+export const CHANNEL_TYPE_OPENAI = 1
 
 export const CHANNEL_TYPES = {
   0: 'Unknown',

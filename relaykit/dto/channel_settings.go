@@ -15,8 +15,12 @@ type ChannelSettings struct {
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
 	Proxy                  string `json:"proxy"`
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	// ImageGenerationStreamEnabled is an explicit per-channel capability flag.
+	// It must only be enabled after the upstream images endpoint is verified to
+	// accept stream=true and return OpenAI-compatible SSE events.
+	ImageGenerationStreamEnabled bool   `json:"image_generation_stream_enabled,omitempty"`
+	SystemPrompt                 string `json:"system_prompt,omitempty"`
+	SystemPromptOverride         bool   `json:"system_prompt_override,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`

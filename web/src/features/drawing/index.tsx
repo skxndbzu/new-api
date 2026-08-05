@@ -1,13 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  Download,
-  ExternalLink,
-  ImageIcon,
-  Loader2,
-  PencilLine,
-  Sparkles,
-  Upload,
-} from 'lucide-react'
+import { ImageIcon, PencilLine, Sparkles, Square, Upload } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -26,11 +18,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { CopyButton } from '@/components/copy-button'
 import { GroupSelector, ModelSelector } from '@/components/model-group-selector'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,6 +29,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -45,9 +37,28 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
-import { editImage, generateImage, getUserGroups, getUserModels } from './api'
+import {
+  editImage,
+  generateRequestedImages,
+  getUserGroups,
+  getUserModels,
+  ImageModelUnavailableError,
+  ImageStreamProtocolError,
+} from './api'
+import { ImageResults } from './components/image-results'
+import {
+  centerCropImageResults,
+  createDrawingResultsFromResponses,
+  createImageRequests,
+  DRAWING_ASPECT_RATIO_OPTIONS,
+  getImageSrc,
+  MAX_DRAWING_IMAGE_COUNT,
+  normalizeImageCount,
+  type DrawingResult,
+} from './lib/image-results'
 import type {
-  ImageGenerationRequest,
+  ImageAspectRatio,
+  ImageGenerationBatchProgress,
   ImageMode,
   ImageResult,
   ModelOption,
@@ -63,11 +74,6 @@ const IMAGE_MODEL_KEYWORDS = [
   'flux',
   'image',
 ]
-
-type DrawingResult = ImageResult & { resultId: string }
-
-const getImageSrc = (image: ImageResult) =>
-  image.url ?? (image.b64_json ? `data:image/png;base64,${image.b64_json}` : '')
 
 function pickDefaultImageModel(models: ModelOption[]) {
   for (const keyword of IMAGE_MODEL_KEYWORDS) {
@@ -87,10 +93,17 @@ export function Drawing() {
   const [group, setGroup] = useState('')
   const [prompt, setPrompt] = useState('')
   const [quality, setQuality] = useState<QualityOption>('auto')
+  const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio | 'auto'>(
+    'auto'
+  )
+  const [imageCountInput, setImageCountInput] = useState('1')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [results, setResults] = useState<DrawingResult[]>([])
+  const [generationProgress, setGenerationProgress] =
+    useState<ImageGenerationBatchProgress | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const { data: models = [] } = useQuery({
     queryKey: ['drawing-models'],
@@ -133,6 +146,17 @@ export function Drawing() {
     return filtered.length > 0 ? filtered : models
   }, [models])
 
+  const aspectRatioItems = useMemo(
+    () => [
+      { label: t('Auto'), value: 'auto' as const },
+      ...DRAWING_ASPECT_RATIO_OPTIONS.map((option) => ({
+        label: `${t(option.labelKey)} (${option.value})`,
+        value: option.value,
+      })),
+    ],
+    [t]
+  )
+
   useEffect(() => {
     if (
       imageModels.length === 0 ||
@@ -165,7 +189,16 @@ export function Drawing() {
     return () => URL.revokeObjectURL(objectUrl)
   }, [imageFile])
 
+  useEffect(
+    () => () => {
+      abortControllerRef.current?.abort()
+    },
+    []
+  )
+
   const submitImageRequest = async () => {
+    if (isSubmitting || abortControllerRef.current) return
+
     const trimmedPrompt = prompt.trim()
     if (!trimmedPrompt) {
       toast.error(t('Please enter a prompt.'))
@@ -180,43 +213,181 @@ export function Drawing() {
       return
     }
 
-    const payload: ImageGenerationRequest = {
+    const requests = createImageRequests({
+      mode,
       model,
       group,
       prompt: trimmedPrompt,
-      n: 1,
-      ...(quality === 'auto' ? {} : { quality }),
-    }
+      quality,
+      aspectRatio,
+      imageCount: Number(imageCountInput),
+    })
 
+    const abortController = new AbortController()
+    const startedAt = performance.now()
+    let succeededCount = 0
+    let failedCount = 0
+    abortControllerRef.current = abortController
+    setResults([])
+    setGenerationProgress({
+      total: requests.length,
+      succeeded: 0,
+      failed: 0,
+      elapsedMs: 0,
+    })
+    const progressTimer = window.setInterval(() => {
+      setGenerationProgress((currentProgress) =>
+        currentProgress
+          ? {
+              ...currentProgress,
+              elapsedMs: performance.now() - startedAt,
+            }
+          : null
+      )
+    }, 250)
     setIsSubmitting(true)
     try {
-      const response =
-        mode === 'edit' && imageFile
-          ? await editImage({ ...payload, image: imageFile })
-          : await generateImage(payload)
+      let responses
+      if (mode === 'edit' && imageFile) {
+        const response = await editImage(
+          { ...requests[0], image: imageFile },
+          abortController.signal
+        )
+        response.data = await centerCropImageResults(
+          response.data ?? [],
+          aspectRatio
+        )
+        responses = [response]
+      } else {
+        responses = await generateRequestedImages(requests, {
+          signal: abortController.signal,
+          onResponse: async (response, requestIndex) => {
+            response.data = await centerCropImageResults(
+              response.data ?? [],
+              aspectRatio
+            )
+            const completedResults = createDrawingResultsFromResponses(
+              [
+                {
+                  data: response.data,
+                  responseId: `${response.responseId}-${requestIndex}`,
+                },
+              ],
+              1
+            ).map((result) => ({ ...result, prompt: trimmedPrompt }))
+            if (completedResults.length === 0) {
+              failedCount++
+              setGenerationProgress({
+                total: requests.length,
+                succeeded: succeededCount,
+                failed: failedCount,
+                elapsedMs: performance.now() - startedAt,
+              })
+              return
+            }
 
-      if (response.error?.message) {
-        throw new Error(response.error.message)
+            succeededCount++
+            setGenerationProgress({
+              total: requests.length,
+              succeeded: succeededCount,
+              failed: failedCount,
+              elapsedMs: performance.now() - startedAt,
+            })
+
+            setResults((currentResults) => {
+              const remainingCount = requests.length - currentResults.length
+              if (remainingCount <= 0) return currentResults
+              return [
+                ...currentResults,
+                ...completedResults.slice(0, remainingCount),
+              ]
+            })
+          },
+          onFailure: () => {
+            failedCount++
+            setGenerationProgress({
+              total: requests.length,
+              succeeded: succeededCount,
+              failed: failedCount,
+              elapsedMs: performance.now() - startedAt,
+            })
+          },
+        })
       }
 
-      const nextResults = response.data ?? []
-      const responseId = response.created ?? Date.now()
-      setResults(
-        nextResults.map((image, imageIndex) => ({
-          ...image,
-          resultId: `${responseId}-${imageIndex}`,
-        }))
+      const responseError = responses.find(
+        (response) => response.error?.message
       )
+      if (responseError?.error?.message) {
+        throw new Error(responseError.error.message)
+      }
+
+      const nextResults = createDrawingResultsFromResponses(
+        responses.map((response, requestIndex) => ({
+          data: response.data,
+          responseId:
+            'responseId' in response && typeof response.responseId === 'string'
+              ? response.responseId
+              : `${response.created ?? Date.now()}-${requestIndex}`,
+        })),
+        requests.length
+      ).map((result) => ({ ...result, prompt: trimmedPrompt }))
+      if (mode === 'edit') {
+        setResults(nextResults)
+        succeededCount = nextResults.length
+        failedCount = requests.length - succeededCount
+        setGenerationProgress({
+          total: requests.length,
+          succeeded: succeededCount,
+          failed: failedCount,
+          elapsedMs: performance.now() - startedAt,
+        })
+      }
       if (nextResults.length === 0) {
-        toast.warning(t('The image model returned no images.'))
+        toast.warning(t('This group does not have the selected image model.'))
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : t('Image request failed')
-      )
+      if (error instanceof Error && error.name === 'AbortError') {
+        setGenerationProgress(null)
+        return
+      }
+      abortController.abort()
+      setGenerationProgress({
+        total: requests.length,
+        succeeded: succeededCount,
+        failed: requests.length - succeededCount,
+        elapsedMs: performance.now() - startedAt,
+      })
+      let message = t('Image request failed')
+      if (error instanceof ImageModelUnavailableError) {
+        message = t('This group does not have the selected image model.')
+      } else if (
+        error instanceof Error &&
+        !(error instanceof ImageStreamProtocolError) &&
+        error.message !== 'Image request failed'
+      ) {
+        message = error.message
+      }
+      toast.error(message)
     } finally {
+      window.clearInterval(progressTimer)
+      setGenerationProgress((currentProgress) =>
+        currentProgress
+          ? {
+              ...currentProgress,
+              elapsedMs: performance.now() - startedAt,
+            }
+          : null
+      )
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null
+      }
       setIsSubmitting(false)
     }
+  }
+
+  const cancelImageRequest = () => {
+    abortControllerRef.current?.abort()
   }
 
   const downloadImage = (image: ImageResult, index: number) => {
@@ -352,117 +523,100 @@ export function Drawing() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='auto'>{t('Auto')}</SelectItem>
-                  <SelectItem value='standard'>{t('Standard')}</SelectItem>
-                  <SelectItem value='hd'>{t('HD')}</SelectItem>
+                  <SelectGroup>
+                    <SelectItem value='auto'>{t('Auto')}</SelectItem>
+                    <SelectItem value='standard'>{t('Standard')}</SelectItem>
+                    <SelectItem value='hd'>{t('HD')}</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
 
-            <Button
-              type='button'
-              className='h-10 gap-2'
-              onClick={submitImageRequest}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <Loader2 className='size-4 animate-spin' />
-              ) : (
+            <div className='space-y-2'>
+              <Label htmlFor='drawing-aspect-ratio'>{t('Aspect ratio')}</Label>
+              <Select
+                items={aspectRatioItems}
+                value={aspectRatio}
+                onValueChange={(value) =>
+                  setAspectRatio(value as ImageAspectRatio | 'auto')
+                }
+                disabled={isSubmitting}
+              >
+                <SelectTrigger id='drawing-aspect-ratio' className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {aspectRatioItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='space-y-2'>
+              <Label htmlFor='drawing-image-count'>{t('Image count')}</Label>
+              <Input
+                id='drawing-image-count'
+                type='number'
+                inputMode='numeric'
+                min={1}
+                max={MAX_DRAWING_IMAGE_COUNT}
+                step={1}
+                value={mode === 'generate' ? imageCountInput : '1'}
+                disabled={isSubmitting || mode === 'edit'}
+                aria-describedby='drawing-image-count-description'
+                onChange={(event) =>
+                  setImageCountInput(event.currentTarget.value)
+                }
+                onBlur={() =>
+                  setImageCountInput(
+                    String(normalizeImageCount(Number(imageCountInput)))
+                  )
+                }
+              />
+              <p
+                id='drawing-image-count-description'
+                className='text-muted-foreground text-xs'
+              >
+                {mode === 'edit'
+                  ? t('Edit mode supports one image per request.')
+                  : t('Choose between 1 and 128 images.')}
+              </p>
+            </div>
+
+            {isSubmitting ? (
+              <Button
+                type='button'
+                variant='outline'
+                className='h-10 gap-2'
+                onClick={cancelImageRequest}
+              >
+                <Square className='size-4' />
+                {t('Cancel')}
+              </Button>
+            ) : (
+              <Button
+                type='button'
+                className='h-10 gap-2'
+                onClick={submitImageRequest}
+              >
                 <ImageIcon className='size-4' />
-              )}
-              {mode === 'edit' ? t('Edit image') : t('Generate image')}
-            </Button>
+                {mode === 'edit' ? t('Edit image') : t('Generate image')}
+              </Button>
+            )}
           </section>
 
           <section className='bg-card min-h-[520px] rounded-lg border p-4 shadow-sm'>
-            {results.length === 0 ? (
-              <div className='flex h-full min-h-[420px] flex-col items-center justify-center gap-3 text-center'>
-                <div className='bg-muted flex size-14 items-center justify-center rounded-full'>
-                  <ImageIcon className='text-muted-foreground size-7' />
-                </div>
-                <div className='space-y-1'>
-                  <h2 className='text-lg font-medium'>{t('No images yet')}</h2>
-                  <p className='text-muted-foreground max-w-md text-sm'>
-                    {t('Generated images will appear here.')}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className='grid gap-4 md:grid-cols-2'>
-                {results.map((image, index) => {
-                  const src = getImageSrc(image)
-                  return (
-                    <article
-                      key={image.resultId}
-                      className='bg-background overflow-hidden rounded-lg border'
-                    >
-                      {src ? (
-                        <img
-                          src={src}
-                          alt={t('Generated image')}
-                          className='bg-muted aspect-square w-full object-contain'
-                        />
-                      ) : (
-                        <div className='bg-muted flex aspect-square w-full items-center justify-center'>
-                          <ImageIcon className='text-muted-foreground size-8' />
-                        </div>
-                      )}
-                      <div className='space-y-3 p-3'>
-                        {image.revised_prompt && (
-                          <div className='bg-muted/50 flex flex-col gap-2 rounded-md border p-3'>
-                            <div className='flex flex-wrap items-center justify-between gap-2'>
-                              <p className='text-sm font-medium'>
-                                {t('Revised prompt')}
-                              </p>
-                              <CopyButton
-                                value={image.revised_prompt}
-                                variant='outline'
-                                size='sm'
-                                tooltip={t('Copy prompt')}
-                                successTooltip={t('Copied!')}
-                                aria-label={t('Copy prompt')}
-                              >
-                                {t('Copy prompt')}
-                              </CopyButton>
-                            </div>
-                            <p className='text-muted-foreground text-xs leading-relaxed break-words whitespace-pre-wrap'>
-                              {image.revised_prompt}
-                            </p>
-                          </div>
-                        )}
-                        <div className='flex items-center justify-end gap-2'>
-                          {image.url && (
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              render={
-                                <a
-                                  href={image.url}
-                                  target='_blank'
-                                  rel='noreferrer'
-                                />
-                              }
-                            >
-                              <ExternalLink className='size-4' />
-                              {t('Open image')}
-                            </Button>
-                          )}
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => downloadImage(image, index)}
-                            disabled={!src}
-                          >
-                            <Download className='size-4' />
-                            {t('Download image')}
-                          </Button>
-                        </div>
-                      </div>
-                    </article>
-                  )
-                })}
-              </div>
-            )}
+            <ImageResults
+              results={results}
+              isSubmitting={isSubmitting}
+              progress={generationProgress}
+              onDownload={downloadImage}
+            />
           </section>
         </div>
       </div>
