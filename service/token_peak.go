@@ -392,7 +392,7 @@ func runTokenPeakSettlementOnce(now time.Time) {
 			logger.LogWarn(context.Background(), fmt.Sprintf("token peak user cache invalidation failed for user %d: %v", award.UserID, err))
 		}
 		if award.AwardedQuota > 0 {
-			model.RecordLog(award.UserID, model.LogTypeSystem, fmt.Sprintf("Token Peak position %d reward: %s", award.Position, logger.LogQuota(award.AwardedQuota)))
+			model.RecordLog(award.UserID, model.LogTypeSystem, fmt.Sprintf("Token 巅峰榜第 %d 名奖励：%s", award.Position, logger.LogQuota(award.AwardedQuota)))
 		}
 	}
 	logger.LogInfo(context.Background(), fmt.Sprintf("token peak settlement completed for %s: rankings=%d rewards=%d", day.RankingDate, len(rankings), len(awards)))
