@@ -128,6 +128,10 @@ export function SidebarModulesSection({
         title: t('Wallet'),
         description: t('Top up balance and view billing history.'),
       },
+      tokenPeak: {
+        title: t('Token Peak'),
+        description: t('Join the daily Token usage challenge.'),
+      },
       personal: {
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
@@ -149,6 +153,10 @@ export function SidebarModulesSection({
       user: {
         title: t('Users'),
         description: t('Administer user accounts and roles.'),
+      },
+      tokenPeakSettings: {
+        title: t('Token Peak settings'),
+        description: t('Configure activity status and daily rewards.'),
       },
       setting: {
         title: t('System settings'),

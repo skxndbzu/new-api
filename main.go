@@ -131,6 +131,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// Token Peak daily ranking settlement at 00:10 Asia/Shanghai.
+	service.StartTokenPeakSettlementTask()
+
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
 	service.StartSystemInstanceReporter()
@@ -199,8 +202,8 @@ func main() {
 
 	// 设置路由
 	router.SetRouter(server, router.WebAssets{
-		BuildFS:    buildFS,
-		IndexPage:  indexPage,
+		BuildFS:     buildFS,
+		IndexPage:   indexPage,
 		DocsBuildFS: docsBuildFS,
 	})
 	var port = os.Getenv("PORT")

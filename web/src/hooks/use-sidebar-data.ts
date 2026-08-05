@@ -31,13 +31,14 @@ import {
   ServerCog,
   Settings,
   Ticket,
+  Trophy,
   User,
   Users,
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -115,6 +116,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('Token Peak'),
+            url: '/token-peak',
+            icon: Trophy,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -139,6 +145,12 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Token Peak settings'),
+            url: '/token-peak-settings',
+            icon: Trophy,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Redemption Codes'),

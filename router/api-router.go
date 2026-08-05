@@ -39,6 +39,13 @@ func SetApiRouter(router *gin.Engine) {
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
 		}
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
+		tokenRankingRoute := apiRouter.Group("/token-rankings")
+		{
+			tokenRankingRoute.GET("/config", middleware.UserAuth(), controller.GetTokenPeakConfig)
+			tokenRankingRoute.GET("/today", middleware.UserAuth(), controller.GetTokenPeakToday)
+			tokenRankingRoute.GET("/records", middleware.UserAuth(), controller.GetTokenPeakRecords)
+			tokenRankingRoute.PUT("/config", middleware.AdminAuth(), controller.UpdateTokenPeakConfig)
+		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
