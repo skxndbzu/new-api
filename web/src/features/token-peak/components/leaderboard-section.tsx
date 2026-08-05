@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CrownIcon, RankingIcon } from '@hugeicons/core-free-icons'
+import {
+  MedalFirstPlaceIcon,
+  MedalSecondPlaceIcon,
+  MedalThirdPlaceIcon,
+  RankingIcon,
+  SparklesIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
@@ -40,14 +46,22 @@ type LeaderboardSectionProps = {
   rankings: TokenPeakRankingEntry[]
 }
 
-const podiumClasses: Record<number, string> = {
-  1: 'border-[oklch(0.76_0.13_78/0.45)] bg-[linear-gradient(120deg,oklch(0.94_0.05_80/0.9),var(--card)_62%)] sm:col-span-2',
-  2: 'border-[oklch(0.72_0.02_250/0.45)] bg-[linear-gradient(120deg,oklch(0.94_0.015_250/0.8),var(--card)_68%)]',
-  3: 'border-[oklch(0.65_0.08_55/0.4)] bg-[linear-gradient(120deg,oklch(0.92_0.035_55/0.75),var(--card)_68%)]',
+const podiumLayoutClasses: Record<number, string> = {
+  1: 'sm:col-start-2 sm:row-start-1 sm:min-h-[282px]',
+  2: 'sm:col-start-1 sm:row-start-1 sm:min-h-[242px]',
+  3: 'sm:col-start-3 sm:row-start-1 sm:min-h-[226px]',
+}
+
+const podiumSurfaceClasses: Record<number, string> = {
+  1: 'border-warning/50 bg-[linear-gradient(145deg,var(--card),color-mix(in_oklch,var(--warning)_14%,var(--card)))] shadow-warning/10',
+  2: 'border-foreground/15 bg-[linear-gradient(145deg,var(--card),var(--muted))]',
+  3: 'border-[oklch(0.63_0.09_55/0.4)] bg-[linear-gradient(145deg,var(--card),oklch(0.9_0.035_55/0.45))]',
 }
 
 export function LeaderboardSection(props: LeaderboardSectionProps) {
   const { t } = useTranslation()
+  const podiumEntries = props.rankings.filter((entry) => entry.position <= 3)
+  const remainingEntries = props.rankings.filter((entry) => entry.position > 3)
 
   return (
     <section className='flex flex-col gap-4'>
@@ -75,18 +89,133 @@ export function LeaderboardSection(props: LeaderboardSectionProps) {
           </EmptyHeader>
         </Empty>
       ) : (
-        <ol className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-          {props.rankings.map((entry, index) => (
-            <LeaderboardRow
-              key={`${entry.position}-${entry.ranking_name}`}
-              entry={entry}
-              index={index}
-              rewardQuota={entry.reward_quota}
-            />
-          ))}
-        </ol>
+        <div className='flex flex-col gap-4'>
+          {podiumEntries.length > 0 && (
+            <ol className='grid items-end gap-3 sm:grid-cols-3'>
+              {podiumEntries.map((entry, index) => (
+                <PodiumCard key={entry.position} entry={entry} index={index} />
+              ))}
+            </ol>
+          )}
+          {remainingEntries.length > 0 && (
+            <ol className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
+              {remainingEntries.map((entry, index) => (
+                <LeaderboardRow
+                  key={`${entry.position}-${entry.ranking_name}`}
+                  entry={entry}
+                  index={index + podiumEntries.length}
+                  rewardQuota={entry.reward_quota}
+                />
+              ))}
+            </ol>
+          )}
+        </div>
       )}
     </section>
+  )
+}
+
+function PodiumCard(props: { entry: TokenPeakRankingEntry; index: number }) {
+  const { t } = useTranslation()
+  const reduceMotion = useReducedMotion()
+  let medalIcon = MedalThirdPlaceIcon
+  let label = t('THIRD PLACE')
+  let iconClassName = 'bg-[oklch(0.72_0.1_55/0.16)] text-[oklch(0.52_0.1_55)]'
+
+  if (props.entry.position === 1) {
+    medalIcon = MedalFirstPlaceIcon
+    label = t('CHAMPION')
+    iconClassName = 'bg-warning/15 text-warning'
+  } else if (props.entry.position === 2) {
+    medalIcon = MedalSecondPlaceIcon
+    label = t('RUNNER-UP')
+    iconClassName = 'bg-foreground/8 text-foreground/70'
+  }
+
+  return (
+    <motion.li
+      initial={reduceMotion ? false : { opacity: 0, y: 20, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={reduceMotion ? undefined : { y: -6 }}
+      transition={{
+        duration: 0.45,
+        delay: props.index * 0.08,
+        ease: 'easeOut',
+      }}
+      className={cn(
+        'relative flex min-h-[218px] min-w-0 flex-col overflow-hidden rounded-lg border px-5 pt-5 shadow-lg',
+        podiumLayoutClasses[props.entry.position],
+        podiumSurfaceClasses[props.entry.position]
+      )}
+    >
+      {props.entry.position === 1 && (
+        <>
+          <motion.div
+            aria-hidden
+            className='text-warning/55 absolute top-5 right-5'
+            animate={
+              reduceMotion
+                ? undefined
+                : { scale: [1, 1.18, 1], rotate: [0, 8, 0] }
+            }
+            transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <HugeiconsIcon icon={SparklesIcon} className='size-5' />
+          </motion.div>
+          <motion.div
+            aria-hidden
+            className='pointer-events-none absolute inset-y-0 w-16 bg-linear-to-r from-transparent via-white/25 to-transparent'
+            animate={reduceMotion ? undefined : { x: ['-180%', '650%'] }}
+            transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 3.5 }}
+          />
+        </>
+      )}
+
+      <div className='relative flex items-start justify-between gap-3'>
+        <div
+          className={cn(
+            'flex size-12 items-center justify-center rounded-lg',
+            iconClassName
+          )}
+        >
+          <motion.div
+            animate={
+              props.entry.position === 1 && !reduceMotion
+                ? { y: [0, -4, 0], rotate: [0, -4, 0] }
+                : undefined
+            }
+            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <HugeiconsIcon icon={medalIcon} className='size-7' aria-hidden />
+          </motion.div>
+        </div>
+        <Badge variant={props.entry.position === 1 ? 'warning' : 'secondary'}>
+          {label}
+        </Badge>
+      </div>
+
+      <div className='relative mt-5 min-w-0 flex-1'>
+        <p className='truncate text-base font-semibold'>
+          {props.entry.ranking_name}
+        </p>
+        <AnimatedTokenNumber
+          value={props.entry.total_tokens}
+          className='mt-2 block text-2xl font-semibold tabular-nums'
+        />
+        <p className='text-muted-foreground text-xs'>Token</p>
+        {props.entry.reward_quota != null && (
+          <div className='bg-background/45 text-primary mt-3 inline-flex rounded-md border border-current/10 px-2.5 py-1 text-sm font-semibold tabular-nums'>
+            {formatQuota(props.entry.reward_quota)}
+          </div>
+        )}
+      </div>
+
+      <div className='relative mt-4 flex h-12 items-end justify-center border-t border-current/10'>
+        <span className='text-foreground/10 text-4xl leading-none font-black tabular-nums'>
+          {props.entry.position}
+        </span>
+      </div>
+    </motion.li>
   )
 }
 
@@ -97,51 +226,29 @@ function LeaderboardRow(props: {
 }) {
   const { t } = useTranslation()
   const reduceMotion = useReducedMotion()
-  const podium = props.entry.position <= 3
 
   return (
     <motion.li
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(props.index, 9) * 0.035 }}
-      className={cn(
-        'bg-card ring-foreground/10 min-w-0 rounded-xl border px-4 py-3.5 shadow-sm ring-1',
-        podium ? podiumClasses[props.entry.position] : 'sm:col-span-2'
-      )}
+      whileHover={reduceMotion ? undefined : { x: 3 }}
+      className='group bg-card ring-foreground/10 min-w-0 rounded-lg border px-4 py-3.5 shadow-sm ring-1 transition-shadow hover:shadow-md'
     >
       <div className='flex min-w-0 items-center gap-3'>
         <div
           className={cn(
             'bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold tabular-nums',
-            props.entry.position === 1 &&
-              'bg-[oklch(0.82_0.14_82/0.2)] text-[oklch(0.52_0.14_70)]'
+            'transition-colors group-hover:bg-primary/10 group-hover:text-primary'
           )}
         >
-          {props.entry.position === 1 ? (
-            <motion.div
-              animate={reduceMotion ? undefined : { y: [0, -3, 0] }}
-              transition={{
-                duration: 2.4,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-            >
-              <HugeiconsIcon icon={CrownIcon} className='size-5' />
-            </motion.div>
-          ) : (
-            props.entry.position
-          )}
+          {props.entry.position}
         </div>
 
         <div className='min-w-0 flex-1'>
-          <div className='flex min-w-0 items-center gap-2'>
-            {props.entry.position === 1 && (
-              <Badge variant='warning'>{t('CHAMPION')}</Badge>
-            )}
-            <p className='truncate text-sm font-semibold'>
-              {props.entry.ranking_name}
-            </p>
-          </div>
+          <p className='truncate text-sm font-semibold'>
+            {props.entry.ranking_name}
+          </p>
           <p className='text-muted-foreground mt-1 text-xs'>
             {t('Position {{position}}', { position: props.entry.position })}
           </p>

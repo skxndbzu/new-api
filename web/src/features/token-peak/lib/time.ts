@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000
+const REWARD_DELIVERY_DELAY_MS = 10 * 60 * 1000
 
 export type CountdownParts = {
   hours: number
@@ -32,7 +33,7 @@ export function getNextShanghaiSettlement(nowMs = Date.now()): number {
     shanghaiNow.getUTCMonth(),
     shanghaiNow.getUTCDate(),
     0,
-    10
+    0
   )
   const nextSettlement = nextSettlementAsUtc - SHANGHAI_OFFSET_MS
 
@@ -40,15 +41,23 @@ export function getNextShanghaiSettlement(nowMs = Date.now()): number {
   return nextSettlement + 24 * 60 * 60 * 1000
 }
 
-export function parseSettlementAt(value?: number | string | null): number {
+export function parseSettlementAt(
+  value?: number | string | null,
+  nowMs = Date.now()
+): number {
+  let rewardDeliveryAt: number | null = null
   if (typeof value === 'number') {
-    return value < 10_000_000_000 ? value * 1000 : value
+    rewardDeliveryAt = value < 10_000_000_000 ? value * 1000 : value
   }
   if (typeof value === 'string' && value.trim()) {
     const parsed = Date.parse(value)
-    if (Number.isFinite(parsed)) return parsed
+    if (Number.isFinite(parsed)) rewardDeliveryAt = parsed
   }
-  return getNextShanghaiSettlement()
+  if (rewardDeliveryAt == null) return getNextShanghaiSettlement(nowMs)
+
+  const settlementAt = rewardDeliveryAt - REWARD_DELIVERY_DELAY_MS
+  if (settlementAt > nowMs) return settlementAt
+  return settlementAt + 24 * 60 * 60 * 1000
 }
 
 export function getCountdownParts(

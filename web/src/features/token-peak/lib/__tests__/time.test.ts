@@ -26,20 +26,23 @@ import {
 } from '../time'
 
 describe('Token Peak settlement time', () => {
-  test('targets the same-day 00:10 settlement before the Beijing cutoff', () => {
-    const now = Date.UTC(2026, 7, 4, 16, 5)
+  test('targets the same-day 00:00 settlement before the Beijing cutoff', () => {
+    const now = Date.UTC(2026, 7, 4, 15, 55)
 
-    assert.equal(getNextShanghaiSettlement(now), Date.UTC(2026, 7, 4, 16, 10))
+    assert.equal(getNextShanghaiSettlement(now), Date.UTC(2026, 7, 4, 16, 0))
   })
 
-  test('targets the next-day 00:10 settlement after the Beijing cutoff', () => {
-    const now = Date.UTC(2026, 7, 4, 16, 11)
+  test('targets the next-day 00:00 settlement after the Beijing cutoff', () => {
+    const now = Date.UTC(2026, 7, 4, 16, 1)
 
-    assert.equal(getNextShanghaiSettlement(now), Date.UTC(2026, 7, 5, 16, 10))
+    assert.equal(getNextShanghaiSettlement(now), Date.UTC(2026, 7, 5, 16, 0))
   })
 
-  test('accepts backend settlement timestamps in seconds', () => {
-    assert.equal(parseSettlementAt(1_800_000_000), 1_800_000_000_000)
+  test('maps the backend reward time to the midnight ranking settlement', () => {
+    assert.equal(
+      parseSettlementAt(1_800_000_000, 1_700_000_000_000),
+      1_799_999_400_000
+    )
   })
 
   test('formats a positive countdown without crossing unit boundaries', () => {
