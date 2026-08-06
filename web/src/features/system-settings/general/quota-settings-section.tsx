@@ -55,6 +55,7 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  RedemptionInviterRewardRateBps: z.coerce.number().int().min(0).max(10000),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -87,6 +88,12 @@ export function QuotaSettingsSection({
     (event: ChangeEvent<HTMLInputElement>) => {
       const value = event.currentTarget.valueAsNumber
       onChange(Number.isNaN(value) ? '' : value)
+    }
+  const handleRewardRateChange =
+    (onChange: (value: QuotaInputValue) => void) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const percent = event.currentTarget.valueAsNumber
+      onChange(Number.isNaN(percent) ? '' : Math.round(percent * 100))
     }
 
   const { form, handleSubmit, isDirty, isSubmitting } =
@@ -231,6 +238,40 @@ export function QuotaSettingsSection({
                     {t('Quota given to invited users ({{formattedQuota}})', {
                       formattedQuota: formatQuotaInputValue(field.value),
                     })}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='RedemptionInviterRewardRateBps'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Redemption Code Referral Reward (%)')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      inputMode='decimal'
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={
+                        typeof field.value === 'number' ? field.value / 100 : ''
+                      }
+                      onChange={handleRewardRateChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Percentage of redeemed quota credited to the inviter (up to two decimal places)'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -102,6 +102,11 @@ func TestSearchRedemptionsFiltersAndPaginates(t *testing.T) {
 
 func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	t.Helper()
+	previousRate := common.RedemptionInviterRewardRateBps
+	common.RedemptionInviterRewardRateBps = 0
+	t.Cleanup(func() {
+		common.RedemptionInviterRewardRateBps = previousRate
+	})
 	require.NoError(t, DB.AutoMigrate(&Redemption{}))
 	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
 	t.Cleanup(func() {
@@ -125,33 +130,116 @@ func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 	return user.Id, key
 }
 
-func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {
-	userId, key := setupRedeemFixture(t, 500)
+func attachRedeemInviter(t *testing.T, userId int) int {
+	t.Helper()
+	inviter := &User{
+		Username: "redeem-inviter", Password: "password", Status: common.UserStatusEnabled,
+		AffCode: "redeem-inviter-code",
+	}
+	require.NoError(t, DB.Create(inviter).Error)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", userId).Update("inviter_id", inviter.Id).Error)
+	return inviter.Id
+}
+
+func TestRedeemCreditsInviterRewardExactlyOnce(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 50_000_000)
+	inviterId := attachRedeemInviter(t, userId)
+	common.RedemptionInviterRewardRateBps = 300
 
 	quota, err := Redeem(key, userId)
 	require.NoError(t, err)
-	assert.Equal(t, 500, quota)
+	assert.Equal(t, 50_000_000, quota)
 
 	var user User
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
-	assert.Equal(t, 500, user.Quota)
+	assert.Equal(t, 50_000_000, user.Quota)
+
+	var inviter User
+	require.NoError(t, DB.First(&inviter, "id = ?", inviterId).Error)
+	assert.Equal(t, 1_500_000, inviter.AffQuota)
+	assert.Equal(t, 1_500_000, inviter.AffHistoryQuota)
 
 	var redemption Redemption
 	require.NoError(t, DB.First(&redemption, "name = ?", "redeem-test").Error)
 	assert.Equal(t, common.RedemptionCodeStatusUsed, redemption.Status)
 	assert.Equal(t, userId, redemption.UsedUserId)
+	assert.Equal(t, inviterId, redemption.InviterRewardUserId)
+	assert.Equal(t, 300, redemption.InviterRewardRateBps)
+	assert.Equal(t, 1_500_000, redemption.InviterRewardQuota)
 
-	// Redeeming the same code again must fail and must not credit quota.
 	_, err = Redeem(key, userId)
 	require.Error(t, err)
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
-	assert.Equal(t, 500, user.Quota)
+	assert.Equal(t, 50_000_000, user.Quota)
+	require.NoError(t, DB.First(&inviter, "id = ?", inviterId).Error)
+	assert.Equal(t, 1_500_000, inviter.AffQuota)
+	assert.Equal(t, 1_500_000, inviter.AffHistoryQuota)
+}
+
+func TestRedeemWithoutInviterDoesNotReward(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 500)
+	common.RedemptionInviterRewardRateBps = 300
+
+	quota, err := Redeem(key, userId)
+	require.NoError(t, err)
+	assert.Equal(t, 500, quota)
+
+	var redemption Redemption
+	require.NoError(t, DB.First(&redemption, "name = ?", "redeem-test").Error)
+	assert.Zero(t, redemption.InviterRewardUserId)
+	assert.Zero(t, redemption.InviterRewardRateBps)
+	assert.Zero(t, redemption.InviterRewardQuota)
+}
+
+func TestRedeemWithRewardDisabledDoesNotRewardInviter(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 500)
+	inviterId := attachRedeemInviter(t, userId)
+
+	_, err := Redeem(key, userId)
+	require.NoError(t, err)
+
+	var inviter User
+	require.NoError(t, DB.First(&inviter, "id = ?", inviterId).Error)
+	assert.Zero(t, inviter.AffQuota)
+	assert.Zero(t, inviter.AffHistoryQuota)
+}
+
+func TestRedeemWithDeletedInviterDoesNotReward(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 500)
+	inviterId := attachRedeemInviter(t, userId)
+	common.RedemptionInviterRewardRateBps = 300
+	require.NoError(t, DB.Delete(&User{}, inviterId).Error)
+
+	quota, err := Redeem(key, userId)
+	require.NoError(t, err)
+	assert.Equal(t, 500, quota)
+
+	var redemption Redemption
+	require.NoError(t, DB.First(&redemption, "name = ?", "redeem-test").Error)
+	assert.Zero(t, redemption.InviterRewardUserId)
+	assert.Zero(t, redemption.InviterRewardQuota)
+}
+
+func TestRedeemRoundsInviterRewardToNearestQuotaUnit(t *testing.T) {
+	userId, key := setupRedeemFixture(t, 50)
+	inviterId := attachRedeemInviter(t, userId)
+	common.RedemptionInviterRewardRateBps = 300
+
+	_, err := Redeem(key, userId)
+	require.NoError(t, err)
+
+	var inviter User
+	require.NoError(t, DB.First(&inviter, "id = ?", inviterId).Error)
+	assert.Equal(t, 2, inviter.AffQuota)
+	assert.Equal(t, 2, inviter.AffHistoryQuota)
 }
 
 // Exactly one of several concurrent redeems of the same code may win, and
 // quota must be credited exactly once.
 func TestRedeemConcurrentSingleSuccess(t *testing.T) {
 	userId, key := setupRedeemFixture(t, 300)
+	inviterId := attachRedeemInviter(t, userId)
+	common.RedemptionInviterRewardRateBps = 300
 
 	const goroutines = 5
 	successes := make([]bool, goroutines)
@@ -178,4 +266,9 @@ func TestRedeemConcurrentSingleSuccess(t *testing.T) {
 	var user User
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
 	assert.Equal(t, 300, user.Quota, "quota must be credited exactly once")
+
+	var inviter User
+	require.NoError(t, DB.First(&inviter, "id = ?", inviterId).Error)
+	assert.Equal(t, 9, inviter.AffQuota, "inviter reward must be credited exactly once")
+	assert.Equal(t, 9, inviter.AffHistoryQuota, "inviter reward history must be credited exactly once")
 }

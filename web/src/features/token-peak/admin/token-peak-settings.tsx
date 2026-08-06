@@ -275,7 +275,7 @@ export function TokenPeakSettings() {
                     <AlertTitle>{t('Settlement notes')}</AlertTitle>
                     <AlertDescription>
                       {t(
-                        'Final settlement completes at 00:10 Beijing Time. Ranking records and rewards are determined by the backend.'
+                        'The leaderboard settles daily at 00:00; rewards arrive about 10-15 minutes later.'
                       )}
                     </AlertDescription>
                   </Alert>

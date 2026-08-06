@@ -30,7 +30,9 @@ export function RulesSection() {
   const rules = [
     t('Daily Token usage is counted for the event.'),
     t('All event times use Beijing Time (Asia/Shanghai).'),
-    t('Final settlement completes daily at 00:10.'),
+    t(
+      'The leaderboard settles daily at 00:00; rewards arrive about 10-15 minutes later.'
+    ),
     t('The configured top positions receive quota rewards.'),
     t('Ranking data may be delayed by several minutes.'),
     t('Abnormal traffic or usage manipulation is prohibited.'),
