@@ -26,6 +26,42 @@ func TestNextTokenPeakSettlementUses0010Boundary(t *testing.T) {
 	assert.True(t, time.Date(2026, 8, 5, 16, 10, 0, 0, time.UTC).Equal(nextTokenPeakSettlement(after)))
 }
 
+func TestRetryTokenPeakSettlementRetriesTwiceThenSucceeds(t *testing.T) {
+	attempts := 0
+	waits := make([]time.Duration, 0, tokenPeakSettlementRetries)
+
+	err := retryTokenPeakSettlement(func() error {
+		attempts++
+		if attempts <= tokenPeakSettlementRetries {
+			return errors.New("temporary database failure")
+		}
+		return nil
+	}, func(delay time.Duration) {
+		waits = append(waits, delay)
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, tokenPeakSettlementRetries+1, attempts)
+	assert.Equal(t, []time.Duration{time.Minute, time.Minute}, waits)
+}
+
+func TestRetryTokenPeakSettlementStopsAfterTwoRetries(t *testing.T) {
+	attempts := 0
+	waits := make([]time.Duration, 0, tokenPeakSettlementRetries)
+	expectedErr := errors.New("database unavailable")
+
+	err := retryTokenPeakSettlement(func() error {
+		attempts++
+		return expectedErr
+	}, func(delay time.Duration) {
+		waits = append(waits, delay)
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Equal(t, tokenPeakSettlementRetries+1, attempts)
+	assert.Equal(t, []time.Duration{time.Minute, time.Minute}, waits)
+}
+
 func TestTokenPeakTokensNeededHonorsUserIDTieBreak(t *testing.T) {
 	target := model.TokenRankingTotal{UserID: 10, TotalTokens: 100}
 
