@@ -23,6 +23,7 @@ import { ErrorState } from '@/components/error-state'
 import { Main } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 
+import { GloryPodium } from './components/glory-podium'
 import { LeaderboardSection } from './components/leaderboard-section'
 import { MyPerformanceCard } from './components/my-performance-card'
 import { RecordsSection } from './components/records-section'
@@ -105,9 +106,13 @@ export function TokenPeak() {
   return (
     <TokenPeakPageFrame>
       <TokenPeakHero enabled nextSettlementAt={config.next_settlement_at} />
+      <GloryPodium rankings={todayQuery.data.data.rankings} />
       <MyPerformanceCard performance={todayQuery.data.data.my_ranking} />
       <RewardsSection rewards={config.rewards} />
-      <LeaderboardSection rankings={todayQuery.data.data.rankings} />
+      <LeaderboardSection
+        rankings={todayQuery.data.data.rankings}
+        currentPosition={todayQuery.data.data.my_ranking?.current_position}
+      />
       <RecordsSection records={recordsQuery.data?.data} />
       <RulesSection />
     </TokenPeakPageFrame>
