@@ -8,15 +8,16 @@ upload
 build
 *.db-journal
 logs
-web/default/dist
-web/classic/dist
-web/node_modules
 web/dist
 .tmp/
 bin/go_build_*
+bin/build_*
 qingniao-docs/node_modules/
-web/default/src/i18n/locales/_reports/*.untranslated.json
+web/src/i18n/locales/_reports/*.untranslated.json
+web/node_modules
 .env
+.env.*
+!.env.example
 one-api
 new-api
 /__debug_bin*
@@ -32,7 +33,7 @@ plans
 
 electron/node_modules
 electron/dist
-data/
+/data/
 .gomodcache/
 .gocache-temp
 .gopath
@@ -45,3 +46,5 @@ skills-lock.json
 .local-tests/
 service/relayconvert/chat_responses_live_local_test.go
 service/openaicompat/chat_responses_live_local_test.go
+go.work
+go.work.sum
