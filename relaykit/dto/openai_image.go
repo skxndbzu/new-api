@@ -14,6 +14,11 @@ import (
 // wrapped-negative n overflows quota calculation into a negative charge.
 const MaxImageN = 128
 
+const (
+	MaxImageEditN      = 10
+	MaxImageEditInputs = 16
+)
+
 type ImageRequest struct {
 	Model             string          `json:"model"`
 	Prompt            string          `json:"prompt" binding:"required"`

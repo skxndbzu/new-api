@@ -107,7 +107,7 @@ describe('drawing image response', () => {
         group: 'default',
         prompt: '把背景改成花园',
         n: 1,
-        image: new File(['image'], 'image.png', { type: 'image/png' }),
+        images: [new File(['image'], 'image.png', { type: 'image/png' })],
       })
     } finally {
       api.post = originalPost
@@ -134,7 +134,7 @@ describe('drawing image response', () => {
         group: 'default',
         prompt: 'edit this image\n\n图片比例为4:5',
         n: 1,
-        image: new File(['image'], 'image.png', { type: 'image/png' }),
+        images: [new File(['image'], 'image.png', { type: 'image/png' })],
       })
     } finally {
       api.post = originalPost
@@ -169,13 +169,132 @@ describe('drawing image response', () => {
           group: 'default',
           prompt: 'edit this image',
           n: 1,
-          image: new File(['image'], 'image.png', { type: 'image/png' }),
+          images: [new File(['image'], 'image.png', { type: 'image/png' })],
         }),
         ImageModelUnavailableError
       )
     } finally {
       api.post = originalPost
     }
+  })
+
+  test('fans out edit outputs without forwarding unsupported n', async () => {
+    const originalPost = api.post
+    const submittedImageNames: string[][] = []
+    const submittedCounts: Array<FormDataEntryValue | null> = []
+    api.post = (async (_url, body) => {
+      assert.ok(body instanceof FormData)
+      const requestIndex = submittedImageNames.length
+      submittedImageNames.push(
+        body.getAll('image[]').map((entry) => (entry as File).name)
+      )
+      submittedCounts.push(body.get('n'))
+      return {
+        data: {
+          data: [{ b64_json: `edited-${requestIndex + 1}` }],
+        },
+      }
+    }) as typeof api.post
+
+    try {
+      const response = await editImage({
+        model: 'gpt-image-2',
+        group: 'default',
+        prompt: 'combine these references',
+        n: 3,
+        images: [
+          new File(['first'], 'first.png', { type: 'image/png' }),
+          new File(['second'], 'second.png', { type: 'image/png' }),
+        ],
+      })
+
+      assert.equal(response.data?.length, 3)
+    } finally {
+      api.post = originalPost
+    }
+
+    assert.equal(submittedImageNames.length, 3)
+    assert.deepEqual(submittedCounts, [null, null, null])
+    assert.ok(
+      submittedImageNames.every(
+        (names) =>
+          names.length === 2 &&
+          names[0] === 'first.png' &&
+          names[1] === 'second.png'
+      )
+    )
+  })
+
+  test('runs edit outputs sequentially to avoid concurrent multipart uploads', async () => {
+    const originalPost = api.post
+    let activeRequests = 0
+    let maximumActiveRequests = 0
+    let releaseFirstRequest: (() => void) | undefined
+    const firstRequestBlocked = new Promise<void>((resolve) => {
+      releaseFirstRequest = resolve
+    })
+    let markFirstRequestStarted: (() => void) | undefined
+    const firstRequestStarted = new Promise<void>((resolve) => {
+      markFirstRequestStarted = resolve
+    })
+    let requestCount = 0
+
+    api.post = (async () => {
+      const requestIndex = requestCount
+      requestCount++
+      activeRequests++
+      maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests)
+      if (requestIndex === 0) {
+        markFirstRequestStarted?.()
+        await firstRequestBlocked
+      }
+      activeRequests--
+      return { data: { data: [{ b64_json: `edited-${requestIndex}` }] } }
+    }) as typeof api.post
+
+    try {
+      const responsePromise = editImage({
+        model: 'gpt-image-2',
+        prompt: 'edit this image twice',
+        n: 2,
+        images: [new File(['image'], 'image.png', { type: 'image/png' })],
+      })
+
+      await firstRequestStarted
+      assert.equal(requestCount, 1)
+      releaseFirstRequest?.()
+      const response = await responsePromise
+      assert.equal(response.data?.length, 2)
+    } finally {
+      api.post = originalPost
+    }
+
+    assert.equal(requestCount, 2)
+    assert.equal(maximumActiveRequests, 1)
+  })
+
+  test('retries a failed edit once and then returns the successful response', async () => {
+    const originalPost = api.post
+    let requestCount = 0
+    api.post = (async () => {
+      requestCount++
+      if (requestCount === 1) throw new Error('temporary failure')
+      return { data: { data: [{ b64_json: 'edited' }] } }
+    }) as typeof api.post
+
+    try {
+      const response = await editImage({
+        model: 'gpt-image-2',
+        prompt: 'edit this image',
+        n: 1,
+        images: [new File(['image'], 'image.png', { type: 'image/png' })],
+      })
+      assert.equal(response.data?.[0]?.b64_json, 'edited')
+    } finally {
+      api.post = originalPost
+    }
+
+    assert.equal(requestCount, 2)
   })
 
   test('requests final JSON images and preserves the revised prompt', async () => {

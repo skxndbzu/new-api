@@ -143,4 +143,35 @@ describe('drawing form', () => {
     queryClient.clear()
     container.remove()
   })
+
+  test('edit mode accepts multiple reference images and fixes output count to one', async () => {
+    const { container, queryClient, root } = await renderDrawingForm()
+
+    const editButton = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent?.trim() === 'Edit'
+    )
+    assert.ok(editButton)
+    await act(async () => editButton.click())
+
+    const imageInput =
+      container.querySelector<HTMLInputElement>('#drawing-images')
+    const countInput = container.querySelector<HTMLInputElement>(
+      '#drawing-image-count'
+    )
+    assert.ok(imageInput)
+    assert.equal(imageInput.multiple, true)
+    assert.ok(countInput)
+    assert.equal(countInput.value, '1')
+    assert.equal(countInput.disabled, true)
+    assert.equal(countInput.max, '10')
+    assert.match(
+      container.querySelector('#drawing-image-count-description')
+        ?.textContent ?? '',
+      /one image/
+    )
+
+    await act(async () => root.unmount())
+    queryClient.clear()
+    container.remove()
+  })
 })
