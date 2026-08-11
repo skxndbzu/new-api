@@ -34,6 +34,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { BRAND_CONFIG } from '@/config/brand'
 import {
   clearPendingLoginWelcome,
+  hasPendingLoginWelcome,
 } from '@/features/auth/lib/storage'
 
 const SECONDARY_CONTACT_ITEMS = [
@@ -53,8 +54,7 @@ const SECONDARY_CONTACT_ITEMS = [
 
 export function CommunityWelcomeDialog() {
   const { t } = useTranslation()
-  // Temporarily hide the welcome dialog that contains contact information.
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(() => hasPendingLoginWelcome())
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen)

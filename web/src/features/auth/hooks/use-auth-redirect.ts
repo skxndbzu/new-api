@@ -23,6 +23,7 @@ import {
   getSavedLanguage,
   sanitizeAuthRedirect,
 } from '@/features/auth/lib/auth-redirect'
+import { markLoginWelcomePending } from '@/features/auth/lib/storage'
 import { applyAuthBundle } from '@/lib/api'
 import type { AuthBundle } from '@/stores/auth-store'
 
@@ -49,6 +50,7 @@ export function useAuthRedirect() {
 
     const targetPath =
       sanitizeAuthRedirect(redirectTo, window.location.origin) ?? '/dashboard'
+    markLoginWelcomePending()
     navigate({ href: targetPath, replace: true })
   }
 
