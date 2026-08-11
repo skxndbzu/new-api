@@ -6,7 +6,6 @@ import (
 	"math"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -19,12 +18,13 @@ import (
 )
 
 const (
-	tokenPeakTimezone         = "Asia/Shanghai"
-	tokenPeakRankingCacheTTL  = 5 * time.Minute
-	tokenPeakSettlementHour   = 0
-	tokenPeakSettlementMinute = 10
-	tokenPeakSettlementTick   = time.Minute
-	tokenPeakTopLimit         = 10
+	tokenPeakTimezone             = "Asia/Shanghai"
+	tokenPeakRankingCacheTTL      = 5 * time.Minute
+	tokenPeakSettlementHour       = 0
+	tokenPeakSettlementMinute     = 10
+	tokenPeakSettlementRetries    = 2
+	tokenPeakSettlementRetryDelay = time.Minute
+	tokenPeakTopLimit             = 10
 )
 
 var tokenPeakLocation = time.FixedZone(tokenPeakTimezone, 8*60*60)
@@ -41,7 +41,6 @@ var (
 	tokenPeakRankingCacheMu sync.RWMutex
 	tokenPeakRankingCache   tokenPeakRankingCacheValue
 	tokenPeakSettlementOnce sync.Once
-	tokenPeakSettlementBusy atomic.Bool
 )
 
 func GetTokenPeakConfig(now time.Time) dto.TokenPeakConfig {
@@ -314,46 +313,69 @@ func StartTokenPeakSettlementTask() {
 		if !common.IsMasterNode {
 			return
 		}
-		gopool.Go(func() {
-			logger.LogInfo(context.Background(), "token peak settlement task started")
-			ticker := time.NewTicker(tokenPeakSettlementTick)
-			defer ticker.Stop()
-			runTokenPeakSettlementOnce(time.Now())
-			for now := range ticker.C {
-				runTokenPeakSettlementOnce(now)
-			}
-		})
+		gopool.Go(runTokenPeakSettlementScheduler)
 	})
 }
 
-func runTokenPeakSettlementOnce(now time.Time) {
-	if !tokenPeakSettlementBusy.CompareAndSwap(false, true) {
-		return
+func runTokenPeakSettlementScheduler() {
+	logger.LogInfo(context.Background(), "token peak daily settlement task started")
+	retryTokenPeakSettlement(func() error {
+		return runTokenPeakSettlementOnce(time.Now())
+	}, time.Sleep)
+
+	for {
+		nextRun := nextTokenPeakSettlement(time.Now())
+		timer := time.NewTimer(time.Until(nextRun))
+		<-timer.C
+		retryTokenPeakSettlement(func() error {
+			return runTokenPeakSettlementOnce(time.Now())
+		}, time.Sleep)
 	}
-	defer tokenPeakSettlementBusy.Store(false)
+}
+
+func retryTokenPeakSettlement(run func() error, wait func(time.Duration)) error {
+	var lastErr error
+	totalAttempts := tokenPeakSettlementRetries + 1
+	for attempt := 1; attempt <= totalAttempts; attempt++ {
+		if err := run(); err != nil {
+			lastErr = err
+			logger.LogWarn(context.Background(), fmt.Sprintf("token peak settlement attempt %d/%d failed: %v", attempt, totalAttempts, err))
+			if attempt < totalAttempts {
+				wait(tokenPeakSettlementRetryDelay)
+			}
+			continue
+		}
+		if attempt > 1 {
+			logger.LogInfo(context.Background(), fmt.Sprintf("token peak settlement succeeded on attempt %d/%d", attempt, totalAttempts))
+		}
+		return nil
+	}
+	return lastErr
+}
+
+func runTokenPeakSettlementOnce(now time.Time) error {
 
 	setting := operation_setting.GetTokenPeakSetting()
 	if !setting.Enabled {
-		return
+		return nil
 	}
 	todayStart, _ := tokenPeakDayRange(now)
 	settlementTime := todayStart.Add(time.Duration(tokenPeakSettlementHour)*time.Hour + time.Duration(tokenPeakSettlementMinute)*time.Minute)
 	if now.Before(settlementTime) {
-		return
+		return nil
 	}
 	dayStart := todayStart.AddDate(0, 0, -1)
 	dayEnd := todayStart
 	if setting.StartedAt > 0 {
 		activityStart, _ := tokenPeakDayRange(time.Unix(setting.StartedAt, 0))
 		if dayStart.Before(activityStart) {
-			return
+			return nil
 		}
 	}
 
 	rankings, err := model.GetTokenRankingTotals(dayStart.Unix(), dayEnd.Unix(), setting.RewardCount)
 	if err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("token peak ranking query failed: %v", err))
-		return
+		return fmt.Errorf("query rankings for %s: %w", dayStart.Format("2006-01-02"), err)
 	}
 	day := model.TokenRankingDay{
 		RankingDate: dayStart.Format("2006-01-02"),
@@ -381,11 +403,10 @@ func runTokenPeakSettlementOnce(now time.Time) {
 	}
 	created, awards, err := model.SettleTokenRankingDay(day, entries)
 	if err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("token peak settlement failed for %s: %v", day.RankingDate, err))
-		return
+		return fmt.Errorf("settle %s: %w", day.RankingDate, err)
 	}
 	if !created {
-		return
+		return nil
 	}
 	for _, award := range awards {
 		if err := model.InvalidateUserCache(award.UserID); err != nil {
@@ -396,6 +417,7 @@ func runTokenPeakSettlementOnce(now time.Time) {
 		}
 	}
 	logger.LogInfo(context.Background(), fmt.Sprintf("token peak settlement completed for %s: rankings=%d rewards=%d", day.RankingDate, len(rankings), len(awards)))
+	return nil
 }
 
 func tokenPeakDayRange(now time.Time) (time.Time, time.Time) {

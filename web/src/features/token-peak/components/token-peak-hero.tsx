@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   ActivitySparkIcon,
   Award02Icon,
+  ChampionIcon,
   Clock01Icon,
   CrownIcon,
+  LaurelWreathFirst01Icon,
   SparklesIcon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -63,10 +65,10 @@ export function TokenPeakHero(props: TokenPeakHeroProps) {
   }, [props.enabled])
 
   return (
-    <section className='relative isolate overflow-hidden rounded-lg bg-[linear-gradient(120deg,oklch(0.16_0.035_255),oklch(0.22_0.07_205)_48%,oklch(0.25_0.08_72))] px-5 py-7 text-white shadow-lg shadow-black/10 sm:px-8 sm:py-10'>
+    <section className='relative isolate overflow-hidden rounded-lg border border-amber-300/15 bg-[linear-gradient(118deg,oklch(0.12_0.035_255),oklch(0.2_0.065_195)_52%,oklch(0.25_0.075_75))] px-5 py-7 text-white shadow-[0_24px_70px_-35px_oklch(0.5_0.12_75)] sm:px-8 sm:py-10'>
       <div
         aria-hidden
-        className='pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [mask-image:linear-gradient(to_right,black,transparent_75%)] [background-size:38px_38px] opacity-[0.12]'
+        className='pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [mask-image:linear-gradient(to_right,black,transparent_82%)] [background-size:42px_42px] opacity-[0.08]'
       />
       <div
         aria-hidden
@@ -99,6 +101,12 @@ export function TokenPeakHero(props: TokenPeakHeroProps) {
       >
         <HugeiconsIcon icon={SparklesIcon} className='text-warning/70 size-6' />
       </motion.div>
+      <HugeiconsIcon
+        aria-hidden
+        icon={LaurelWreathFirst01Icon}
+        className='pointer-events-none absolute -top-8 -right-8 size-56 text-amber-200/5 sm:size-72'
+        strokeWidth={0.8}
+      />
 
       <div className='relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,340px)] lg:items-end'>
         <div className='max-w-2xl'>
@@ -114,7 +122,7 @@ export function TokenPeakHero(props: TokenPeakHeroProps) {
             )}
             {props.enabled ? t("Today's challenge is live") : t('Token Peak')}
           </Badge>
-          <div className='mt-5 flex items-center gap-3'>
+          <div className='mt-6 flex items-center gap-3'>
             <motion.div
               className='bg-warning/15 text-warning ring-warning/25 flex size-11 shrink-0 items-center justify-center rounded-lg ring-1'
               animate={reduceMotion ? undefined : { y: [0, -4, 0] }}
@@ -130,11 +138,11 @@ export function TokenPeakHero(props: TokenPeakHeroProps) {
                 strokeWidth={1.8}
               />
             </motion.div>
-            <h1 className='text-2xl leading-tight font-semibold sm:text-4xl'>
+            <h1 className='text-3xl leading-tight font-bold sm:text-5xl'>
               {t('Daily Token Peak')}
             </h1>
           </div>
-          <p className='mt-3 max-w-xl text-sm leading-6 text-white/70 sm:text-base'>
+          <p className='mt-4 max-w-xl text-sm leading-6 text-white/70 sm:text-lg'>
             {t('Use more, rank higher, and win daily quota rewards.')}
           </p>
           <div className='mt-5 flex flex-wrap gap-2 text-xs text-white/65'>
@@ -150,18 +158,26 @@ export function TokenPeakHero(props: TokenPeakHeroProps) {
         </div>
 
         {props.enabled && (
-          <div className='min-w-0 rounded-lg border border-white/15 bg-black/20 p-4 shadow-xl shadow-black/10 backdrop-blur-sm'>
-            <div className='flex items-center gap-2 text-xs font-medium text-white/65'>
+          <div className='relative min-w-0 overflow-hidden rounded-lg border border-amber-100/20 bg-black/25 p-4 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-5'>
+            <HugeiconsIcon
+              aria-hidden
+              icon={ChampionIcon}
+              className='absolute -right-4 -bottom-5 size-28 text-white/5'
+            />
+            <div className='relative flex items-center gap-2 text-xs font-medium text-white/65'>
               <HugeiconsIcon icon={Clock01Icon} className='size-4' />
               {t("Until today's settlement")}
               <span className='ml-auto text-white/45'>{t('Beijing Time')}</span>
             </div>
-            <div className='mt-3 grid grid-cols-3 gap-2' aria-live='off'>
+            <div
+              className='relative mt-4 grid grid-cols-3 gap-2'
+              aria-live='off'
+            >
               <CountdownUnit value={countdown.hours} label={t('Hours')} />
               <CountdownUnit value={countdown.minutes} label={t('Minutes')} />
               <CountdownUnit value={countdown.seconds} label={t('Seconds')} />
             </div>
-            <p className='mt-3 border-t border-white/10 pt-3 text-xs leading-5 text-white/55'>
+            <p className='relative mt-4 border-t border-white/10 pt-3 text-xs leading-5 text-white/55'>
               {t(
                 'The leaderboard settles daily at 00:00; rewards arrive about 10-15 minutes later.'
               )}
@@ -175,11 +191,13 @@ export function TokenPeakHero(props: TokenPeakHeroProps) {
 
 function CountdownUnit(props: { value: number; label: string }) {
   return (
-    <div className='rounded-md border border-white/10 bg-white/5 px-3 py-2.5 text-center'>
-      <div className='text-xl font-semibold tabular-nums sm:text-2xl'>
+    <div className='rounded-md border border-white/10 bg-white/6 px-2 py-3 text-center shadow-inner sm:px-3'>
+      <div className='text-2xl font-bold tabular-nums sm:text-4xl'>
         {String(props.value).padStart(2, '0')}
       </div>
-      <div className='mt-0.5 text-[10px] text-white/50'>{props.label}</div>
+      <div className='mt-1 text-[10px] font-medium text-white/50'>
+        {props.label}
+      </div>
     </div>
   )
 }

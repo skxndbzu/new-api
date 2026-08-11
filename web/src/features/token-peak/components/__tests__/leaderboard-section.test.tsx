@@ -68,15 +68,17 @@ await i18n.use(initReactI18next).init({
   resources: {
     en: {
       translation: {
-        CHAMPION: 'CHAMPION',
-        'RUNNER-UP': 'RUNNER-UP',
-        'THIRD PLACE': 'THIRD PLACE',
+        "Today's Hall of Glory": "Today's Hall of Glory",
+        'Waiting for challenger': 'Waiting for challenger',
+        You: 'You',
       },
     },
   },
 })
 
 const { LeaderboardSection } = await import('../leaderboard-section')
+const { GloryPodium } = await import('../glory-podium')
+const { MyPerformanceCard } = await import('../my-performance-card')
 const reactTestGlobals = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean
 }
@@ -89,19 +91,13 @@ const rankings: TokenPeakRankingEntry[] = [
   { position: 4, ranking_name: 'FourthPlace', total_tokens: 6_840_119 },
 ]
 
-async function renderLeaderboard(
-  props: React.ComponentProps<typeof LeaderboardSection>
-) {
+async function renderElement(element: React.ReactNode) {
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
 
   await act(async () => {
-    root.render(
-      <I18nextProvider i18n={i18n}>
-        <LeaderboardSection {...props} />
-      </I18nextProvider>
-    )
+    root.render(<I18nextProvider i18n={i18n}>{element}</I18nextProvider>)
   })
 
   return { container, root }
@@ -112,21 +108,61 @@ describe('token peak leaderboard', () => {
     domWindow.close()
   })
 
-  test('separates the top three into an ordered podium before remaining entries', async () => {
-    const rendered = await renderLeaderboard({ rankings })
+  test('renders every ranking in one list and identifies the current user', async () => {
+    const rendered = await renderElement(
+      <LeaderboardSection rankings={rankings} currentPosition={4} />
+    )
     const lists = rendered.container.querySelectorAll('ol')
 
-    assert.equal(lists.length, 2)
+    assert.equal(lists.length, 1)
     assert.deepEqual(
       [...lists[0].children].map((item) =>
         item.querySelector('p')?.textContent?.trim()
       ),
-      ['AuroraAPI', 'QuantumFlow', 'PixelPilot']
+      ['AuroraAPI', 'QuantumFlow', 'PixelPilot', 'FourthPlace']
     )
-    assert.match(lists[0].textContent ?? '', /CHAMPION/)
-    assert.match(lists[0].textContent ?? '', /RUNNER-UP/)
-    assert.match(lists[0].textContent ?? '', /THIRD PLACE/)
-    assert.match(lists[1].textContent ?? '', /FourthPlace/)
+    const currentRow = rendered.container.querySelector('[aria-current="true"]')
+    assert.match(currentRow?.textContent ?? '', /FourthPlace/)
+    assert.match(currentRow?.textContent ?? '', /You/)
+
+    await act(async () => rendered.root.unmount())
+    rendered.container.remove()
+  })
+
+  test('keeps three podium slots visible when ranking data is incomplete', async () => {
+    const rendered = await renderElement(
+      <GloryPodium rankings={rankings.slice(0, 1)} />
+    )
+    const podium = rendered.container.querySelector('ol')
+
+    assert.equal(podium?.children.length, 3)
+    assert.match(podium?.textContent ?? '', /AuroraAPI/)
+    assert.equal(
+      [...rendered.container.querySelectorAll('li')].filter((item) =>
+        item.textContent?.includes('Waiting for challenger')
+      ).length,
+      2
+    )
+
+    await act(async () => rendered.root.unmount())
+    rendered.container.remove()
+  })
+
+  test('shows challenge progress from recorded tokens and the backend gap', async () => {
+    const rendered = await renderElement(
+      <MyPerformanceCard
+        performance={{
+          current_position: null,
+          total_tokens: 400,
+          tokens_to_rank: 100,
+          target_position: 10,
+        }}
+      />
+    )
+    const progress = rendered.container.querySelector('[data-slot="progress"]')
+
+    assert.equal(progress?.getAttribute('aria-valuenow'), '80')
+    assert.match(rendered.container.textContent ?? '', /100 Token/)
 
     await act(async () => rendered.root.unmount())
     rendered.container.remove()
