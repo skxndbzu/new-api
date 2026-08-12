@@ -196,10 +196,25 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.Model = formData.Get("model")
 			if nValue := strings.TrimSpace(formData.Get("n")); nValue != "" {
 				n, err := strconv.Atoi(nValue)
-				if err != nil || n < 0 || n > dto.MaxImageN {
-					return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
+				if err != nil || n < 0 || n > dto.MaxImageEditN {
+					return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageEditN)
 				}
 				imageRequest.N = common.GetPointer(uint(n))
+			}
+
+			imageFiles := form.File["image"]
+			if len(imageFiles) == 0 {
+				imageFiles = form.File["image[]"]
+			}
+			if len(imageFiles) == 0 {
+				for fieldName, files := range form.File {
+					if strings.HasPrefix(fieldName, "image[") {
+						imageFiles = append(imageFiles, files...)
+					}
+				}
+			}
+			if len(imageFiles) < 1 || len(imageFiles) > dto.MaxImageEditInputs {
+				return nil, fmt.Errorf("image edit requires between 1 and %d images", dto.MaxImageEditInputs)
 			}
 			imageRequest.Quality = formData.Get("quality")
 			imageRequest.Size = formData.Get("size")
@@ -246,8 +261,12 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			return nil, errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
 		}
 
-		if imageRequest.N != nil && *imageRequest.N > dto.MaxImageN {
-			return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
+		maxImageN := uint(dto.MaxImageN)
+		if relayMode == relayconstant.RelayModeImagesEdits {
+			maxImageN = dto.MaxImageEditN
+		}
+		if imageRequest.N != nil && *imageRequest.N > maxImageN {
+			return nil, fmt.Errorf("n must be an integer between 1 and %d", maxImageN)
 		}
 
 		// Not "256x256", "512x512", or "1024x1024"

@@ -20,6 +20,7 @@ import axios from 'axios'
 
 import { api, getFreshAuthHeaders } from '@/lib/api'
 
+import { MAX_EDIT_IMAGE_COUNT, normalizeImageCount } from './lib/image-results'
 import type {
   GroupOption,
   ImageGenerationProgress,
@@ -185,37 +186,79 @@ export async function editImage(
     prompt,
     quality,
     n,
-    image,
-  }: ImageGenerationRequest & { image: File },
+    images,
+  }: ImageGenerationRequest & { images: File[] },
   signal?: AbortSignal
 ): Promise<ImageResponse> {
-  const formData = new FormData()
-  formData.append('model', model)
-  formData.append(
-    'prompt',
-    `${prompt}\n\n${CHINESE_REVISED_PROMPT_INSTRUCTION}`
+  const requestCount = normalizeImageCount(n, MAX_EDIT_IMAGE_COUNT)
+  const responses = Array.from<ImageResponse | undefined>({
+    length: requestCount,
+  })
+  const failures = Array.from<unknown>({ length: requestCount })
+
+  for (let requestIndex = 0; requestIndex < requestCount; requestIndex++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const formData = new FormData()
+      formData.append('model', model)
+      formData.append(
+        'prompt',
+        `${prompt}\n\n${CHINESE_REVISED_PROMPT_INSTRUCTION}`
+      )
+      for (const image of images) {
+        formData.append('image[]', image)
+      }
+      if (group) formData.append('group', group)
+      if (quality && quality !== 'auto') {
+        formData.append('quality', quality)
+      }
+
+      try {
+        const res = await api.post('/pg/images/edits', formData, {
+          skipErrorHandler: true,
+          signal,
+        })
+        const response = res.data as ImageResponse
+        if (response.error?.message) {
+          throw new Error(response.error.message)
+        }
+        responses[requestIndex] = response
+        break
+      } catch (error) {
+        if (
+          signal?.aborted ||
+          (error instanceof Error && error.name === 'AbortError')
+        ) {
+          throw error
+        }
+        failures[requestIndex] = error
+      }
+    }
+  }
+
+  const completedResponses = responses.filter(
+    (response): response is ImageResponse => response !== undefined
   )
-  formData.append('n', String(n))
-  formData.append('image', image)
+  if (completedResponses.length > 0) {
+    return {
+      created: completedResponses.find(
+        (response) => response.created !== undefined
+      )?.created,
+      data: completedResponses.flatMap((response) => response.data ?? []),
+    }
+  }
 
-  if (group) formData.append('group', group)
-  if (quality && quality !== 'auto') formData.append('quality', quality)
-
-  try {
-    const res = await api.post('/pg/images/edits', formData, {
-      skipErrorHandler: true,
-      signal,
-    })
-    return res.data
-  } catch (error) {
-    if (
+  const unavailableError = failures.find(
+    (error) =>
       axios.isAxiosError(error) &&
       error.response?.data?.error?.code === 'model_not_found'
-    ) {
-      throw new ImageModelUnavailableError()
-    }
-    throw error
+  )
+  if (unavailableError) {
+    throw new ImageModelUnavailableError()
   }
+  throw (
+    failures.find((error) => error !== undefined) ??
+    new Error('Image request failed')
+  )
 }
 
 async function getImageResponseError(response: Response): Promise<string> {

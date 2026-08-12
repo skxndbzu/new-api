@@ -64,11 +64,58 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 	})
 
 	t.Run("invalid stream value is rejected", func(t *testing.T) {
-		c, _ := newContext(t, "notabool", false)
+		c, _ := newContext(t, "notabool", true)
 
 		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid stream value")
+	})
+}
+
+func TestGetAndValidOpenAIImageEditRequestBounds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newContext := func(t *testing.T, imageCount int, n int) *gin.Context {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+		require.NoError(t, writer.WriteField("prompt", "edit these images"))
+		require.NoError(t, writer.WriteField("n", fmt.Sprintf("%d", n)))
+		for i := 0; i < imageCount; i++ {
+			part, err := writer.CreateFormFile("image[]", fmt.Sprintf("input-%d.png", i))
+			require.NoError(t, err)
+			_, err = part.Write([]byte("fake image"))
+			require.NoError(t, err)
+		}
+		require.NoError(t, writer.Close())
+
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+		return c
+	}
+
+	t.Run("accepts multiple inputs and outputs at the edit limits", func(t *testing.T) {
+		c := newContext(t, dto.MaxImageEditInputs, dto.MaxImageEditN)
+
+		request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+		require.NoError(t, err)
+		require.NotNil(t, request.N)
+		require.Equal(t, uint(dto.MaxImageEditN), *request.N)
+	})
+
+	t.Run("rejects too many edit inputs", func(t *testing.T) {
+		c := newContext(t, dto.MaxImageEditInputs+1, 1)
+
+		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+		require.ErrorContains(t, err, fmt.Sprintf("between 1 and %d images", dto.MaxImageEditInputs))
+	})
+
+	t.Run("rejects too many edit outputs", func(t *testing.T) {
+		c := newContext(t, 1, dto.MaxImageEditN+1)
+
+		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+		require.ErrorContains(t, err, fmt.Sprintf("between 1 and %d", dto.MaxImageEditN))
 	})
 }
 
@@ -155,6 +202,6 @@ func TestGetAndValidOpenAIImageRequestNBounds(t *testing.T) {
 
 		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), boundErr)
+		require.Contains(t, err.Error(), fmt.Sprintf("n must be an integer between 1 and %d", dto.MaxImageEditN))
 	})
 }

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -18,22 +19,26 @@ import (
 
 // TestConvertImageEditRequestMultipart verifies that ConvertImageRequest
 // re-serializes multipart image edit requests with all fields (including
-// stream) and the file intact, both when the form was already parsed and when
+// stream) and every file intact, both when the form was already parsed and when
 // it must be re-parsed from the reusable body.
 func TestConvertImageEditRequestMultipart(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	imageContents := [][]byte{[]byte("first image"), []byte("second image")}
 
 	newMultipartContext := func(t *testing.T, prompt string) *gin.Context {
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)
 		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+		require.NoError(t, writer.WriteField("group", "playground-group"))
 		require.NoError(t, writer.WriteField("prompt", prompt))
 		require.NoError(t, writer.WriteField("stream", "true"))
 		require.NoError(t, writer.WriteField("partial_images", "3"))
-		part, err := writer.CreateFormFile("image", "input.png")
-		require.NoError(t, err)
-		_, err = part.Write([]byte("fake image"))
-		require.NoError(t, err)
+		for index, content := range imageContents {
+			part, err := writer.CreateFormFile("image[]", fmt.Sprintf("input-%d.png", index))
+			require.NoError(t, err)
+			_, err = part.Write(content)
+			require.NoError(t, err)
+		}
 		require.NoError(t, writer.Close())
 
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -62,17 +67,20 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 		require.NoError(t, replayedRequest.ParseMultipartForm(32<<20))
 
 		require.Equal(t, "gpt-image-1", replayedRequest.PostForm.Get("model"))
+		require.Empty(t, replayedRequest.PostForm.Get("group"))
 		require.Equal(t, prompt, replayedRequest.PostForm.Get("prompt"))
 		require.Equal(t, "true", replayedRequest.PostForm.Get("stream"))
 		require.Equal(t, "3", replayedRequest.PostForm.Get("partial_images"))
-		require.Len(t, replayedRequest.MultipartForm.File["image"], 1)
-
-		file, err := replayedRequest.MultipartForm.File["image"][0].Open()
-		require.NoError(t, err)
-		defer file.Close()
-		fileBytes, err := io.ReadAll(file)
-		require.NoError(t, err)
-		require.Equal(t, []byte("fake image"), fileBytes)
+		forwardedImages := replayedRequest.MultipartForm.File["image[]"]
+		require.Len(t, forwardedImages, len(imageContents))
+		for index, fileHeader := range forwardedImages {
+			file, err := fileHeader.Open()
+			require.NoError(t, err)
+			fileBytes, readErr := io.ReadAll(file)
+			require.NoError(t, file.Close())
+			require.NoError(t, readErr)
+			require.Equal(t, imageContents[index], fileBytes)
+		}
 	}
 
 	t.Run("with pre-parsed form", func(t *testing.T) {
@@ -95,4 +103,14 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 
 		convertAndReplay(t, c, prompt)
 	})
+}
+
+func TestUpdateOpenAIImageCountUsesActualFixedPriceOutputCount(t *testing.T) {
+	info := &relaycommon.RelayInfo{}
+	info.PriceData.UsePrice = true
+	info.PriceData.AddOtherRatio("n", 5)
+
+	updateOpenAIImageCount(info, 3)
+
+	require.Equal(t, 3.0, info.PriceData.OtherRatios()["n"])
 }

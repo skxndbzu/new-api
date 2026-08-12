@@ -28,6 +28,7 @@ import {
   DRAWING_ASPECT_RATIO_OPTIONS,
   getImageSrc,
   MAX_DRAWING_IMAGE_COUNT,
+  MAX_EDIT_IMAGE_COUNT,
   normalizeImageCount,
 } from '../image-results'
 
@@ -191,7 +192,7 @@ describe('drawing image requests and results', () => {
     assert.equal(await centerCropImageResults(images, 'auto'), images)
   })
 
-  test('explicitly limits edit requests to one output image', () => {
+  test('creates one edit request with the selected output count', () => {
     const requests = createImageRequests({
       ...requestDefaults,
       mode: 'edit',
@@ -199,7 +200,18 @@ describe('drawing image requests and results', () => {
     })
 
     assert.equal(requests.length, 1)
-    assert.equal(requests[0].n, 1)
+    assert.equal(requests[0].n, 5)
+  })
+
+  test('limits one edit request to the provider output maximum', () => {
+    const requests = createImageRequests({
+      ...requestDefaults,
+      mode: 'edit',
+      imageCount: MAX_EDIT_IMAGE_COUNT + 1,
+    })
+
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].n, MAX_EDIT_IMAGE_COUNT)
   })
 
   test('keeps every item returned by a multi-image response', () => {
@@ -216,7 +228,7 @@ describe('drawing image requests and results', () => {
     )
   })
 
-  test('keeps one final image from each single-output request', () => {
+  test('keeps every final image until the requested result limit', () => {
     const results = createDrawingResultsFromResponses(
       [
         {
@@ -230,7 +242,7 @@ describe('drawing image requests and results', () => {
 
     assert.deepEqual(
       results.map((result) => result.b64_json),
-      ['image-1', 'image-3']
+      ['image-1', 'image-2']
     )
   })
 

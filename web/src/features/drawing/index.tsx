@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ImageIcon, PencilLine, Sparkles, Square, Upload } from 'lucide-react'
+import { ImageIcon, PencilLine, Sparkles, Square } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -35,7 +35,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
 
 import {
   editImage,
@@ -46,6 +45,7 @@ import {
   ImageStreamProtocolError,
 } from './api'
 import { ImageResults } from './components/image-results'
+import { ReferenceImageUpload } from './components/reference-image-upload'
 import {
   centerCropImageResults,
   createDrawingResultsFromResponses,
@@ -53,6 +53,8 @@ import {
   DRAWING_ASPECT_RATIO_OPTIONS,
   getImageSrc,
   MAX_DRAWING_IMAGE_COUNT,
+  MAX_EDIT_IMAGE_COUNT,
+  MAX_EDIT_REFERENCE_IMAGE_COUNT,
   normalizeImageCount,
   type DrawingResult,
 } from './lib/image-results'
@@ -97,8 +99,7 @@ export function Drawing() {
     'auto'
   )
   const [imageCountInput, setImageCountInput] = useState('1')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState('')
+  const [imageFiles, setImageFiles] = useState<File[]>([])
   const [results, setResults] = useState<DrawingResult[]>([])
   const [generationProgress, setGenerationProgress] =
     useState<ImageGenerationBatchProgress | null>(null)
@@ -178,17 +179,6 @@ export function Drawing() {
     )
   }, [group, groups])
 
-  useEffect(() => {
-    if (!imageFile) {
-      setPreviewUrl('')
-      return
-    }
-
-    const objectUrl = URL.createObjectURL(imageFile)
-    setPreviewUrl(objectUrl)
-    return () => URL.revokeObjectURL(objectUrl)
-  }, [imageFile])
-
   useEffect(
     () => () => {
       abortControllerRef.current?.abort()
@@ -208,7 +198,7 @@ export function Drawing() {
       toast.error(t('Please select an image model.'))
       return
     }
-    if (mode === 'edit' && !imageFile) {
+    if (mode === 'edit' && imageFiles.length === 0) {
       toast.error(t('Please upload a reference image for edit mode.'))
       return
     }
@@ -222,6 +212,8 @@ export function Drawing() {
       aspectRatio,
       imageCount: Number(imageCountInput),
     })
+    const requestedImageCount =
+      mode === 'edit' ? requests[0].n : requests.length
 
     const abortController = new AbortController()
     const startedAt = performance.now()
@@ -230,7 +222,7 @@ export function Drawing() {
     abortControllerRef.current = abortController
     setResults([])
     setGenerationProgress({
-      total: requests.length,
+      total: requestedImageCount,
       succeeded: 0,
       failed: 0,
       elapsedMs: 0,
@@ -248,9 +240,9 @@ export function Drawing() {
     setIsSubmitting(true)
     try {
       let responses
-      if (mode === 'edit' && imageFile) {
+      if (mode === 'edit' && imageFiles.length > 0) {
         const response = await editImage(
-          { ...requests[0], image: imageFile },
+          { ...requests[0], images: imageFiles },
           abortController.signal
         )
         response.data = await centerCropImageResults(
@@ -330,14 +322,14 @@ export function Drawing() {
               ? response.responseId
               : `${response.created ?? Date.now()}-${requestIndex}`,
         })),
-        requests.length
+        requestedImageCount
       ).map((result) => ({ ...result, prompt: trimmedPrompt }))
       if (mode === 'edit') {
         setResults(nextResults)
         succeededCount = nextResults.length
-        failedCount = requests.length - succeededCount
+        failedCount = requestedImageCount - succeededCount
         setGenerationProgress({
-          total: requests.length,
+          total: requestedImageCount,
           succeeded: succeededCount,
           failed: failedCount,
           elapsedMs: performance.now() - startedAt,
@@ -353,9 +345,9 @@ export function Drawing() {
       }
       abortController.abort()
       setGenerationProgress({
-        total: requests.length,
+        total: requestedImageCount,
         succeeded: succeededCount,
-        failed: requests.length - succeededCount,
+        failed: requestedImageCount - succeededCount,
         elapsedMs: performance.now() - startedAt,
       })
       let message = t('Image request failed')
@@ -442,7 +434,10 @@ export function Drawing() {
                   variant={mode === item ? 'default' : 'ghost'}
                   size='sm'
                   className='gap-2'
-                  onClick={() => setMode(item)}
+                  onClick={() => {
+                    setMode(item)
+                    if (item === 'edit') setImageCountInput('1')
+                  }}
                   disabled={isSubmitting}
                 >
                   {item === 'generate' ? (
@@ -470,46 +465,12 @@ export function Drawing() {
             </div>
 
             {mode === 'edit' && (
-              <div className='space-y-2'>
-                <Label htmlFor='drawing-image'>{t('Reference image')}</Label>
-                <label
-                  htmlFor='drawing-image'
-                  className={cn(
-                    'border-input bg-background hover:bg-accent flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-4 text-center transition-colors',
-                    isSubmitting && 'pointer-events-none opacity-60'
-                  )}
-                >
-                  {previewUrl ? (
-                    <img
-                      src={previewUrl}
-                      alt={t('Reference preview')}
-                      className='max-h-52 rounded-md object-contain'
-                    />
-                  ) : (
-                    <>
-                      <Upload className='text-muted-foreground size-6' />
-                      <span className='text-sm font-medium'>
-                        {t('Upload image')}
-                      </span>
-                      <span className='text-muted-foreground text-xs'>
-                        {t(
-                          'The model will edit this image based on your prompt.'
-                        )}
-                      </span>
-                    </>
-                  )}
-                </label>
-                <Input
-                  id='drawing-image'
-                  type='file'
-                  accept='image/*'
-                  className='sr-only'
-                  disabled={isSubmitting}
-                  onChange={(event) =>
-                    setImageFile(event.target.files?.[0] ?? null)
-                  }
-                />
-              </div>
+              <ReferenceImageUpload
+                files={imageFiles}
+                maxFiles={MAX_EDIT_REFERENCE_IMAGE_COUNT}
+                disabled={isSubmitting}
+                onFilesChange={setImageFiles}
+              />
             )}
 
             <div className='space-y-2'>
@@ -564,9 +525,13 @@ export function Drawing() {
                 type='number'
                 inputMode='numeric'
                 min={1}
-                max={MAX_DRAWING_IMAGE_COUNT}
+                max={
+                  mode === 'edit'
+                    ? MAX_EDIT_IMAGE_COUNT
+                    : MAX_DRAWING_IMAGE_COUNT
+                }
                 step={1}
-                value={mode === 'generate' ? imageCountInput : '1'}
+                value={imageCountInput}
                 disabled={isSubmitting || mode === 'edit'}
                 aria-describedby='drawing-image-count-description'
                 onChange={(event) =>
@@ -574,7 +539,14 @@ export function Drawing() {
                 }
                 onBlur={() =>
                   setImageCountInput(
-                    String(normalizeImageCount(Number(imageCountInput)))
+                    String(
+                      normalizeImageCount(
+                        Number(imageCountInput),
+                        mode === 'edit'
+                          ? MAX_EDIT_IMAGE_COUNT
+                          : MAX_DRAWING_IMAGE_COUNT
+                      )
+                    )
                   )
                 }
               />
@@ -583,7 +555,7 @@ export function Drawing() {
                 className='text-muted-foreground text-xs'
               >
                 {mode === 'edit'
-                  ? t('Edit mode supports one image per request.')
+                  ? t('Edit mode currently supports generating one image.')
                   : t('Choose between 1 and 128 images.')}
               </p>
             </div>

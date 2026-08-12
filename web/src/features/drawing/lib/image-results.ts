@@ -25,6 +25,8 @@ import type {
 } from '../types'
 
 export const MAX_DRAWING_IMAGE_COUNT = 128
+export const MAX_EDIT_IMAGE_COUNT = 10
+export const MAX_EDIT_REFERENCE_IMAGE_COUNT = 16
 export const DRAWING_ASPECT_RATIO_OPTIONS = [
   { value: '1:1', labelKey: 'Square' },
   { value: '2:3', labelKey: 'Portrait' },
@@ -50,9 +52,12 @@ export type CenterCrop = {
   sourceHeight: number
 }
 
-export function normalizeImageCount(value: number): number {
+export function normalizeImageCount(
+  value: number,
+  max: number = MAX_DRAWING_IMAGE_COUNT
+): number {
   if (!Number.isFinite(value)) return 1
-  return Math.min(MAX_DRAWING_IMAGE_COUNT, Math.max(1, Math.trunc(value)))
+  return Math.min(max, Math.max(1, Math.trunc(value)))
 }
 
 export function createImageRequests({
@@ -73,12 +78,14 @@ export function createImageRequests({
   imageCount: number
 }): ImageGenerationRequest[] {
   const requestCount = mode === 'generate' ? normalizeImageCount(imageCount) : 1
+  const outputCount =
+    mode === 'edit' ? normalizeImageCount(imageCount, MAX_EDIT_IMAGE_COUNT) : 1
   const request: ImageGenerationRequest = {
     model,
     group,
     prompt:
       aspectRatio === 'auto' ? prompt : `${prompt}，图片比例为${aspectRatio}`,
-    n: 1,
+    n: outputCount,
     ...(quality === 'auto' ? {} : { quality }),
   }
   return Array.from({ length: requestCount }, () => ({ ...request }))
@@ -207,9 +214,9 @@ export function createDrawingResultsFromResponses(
   const results: DrawingResult[] = []
   for (const response of responses) {
     if (results.length >= maxResults) break
-    const image = response.data?.[0]
-    if (!image) continue
-    results.push(...createDrawingResults([image], response.responseId))
+    const remainingCount = maxResults - results.length
+    const images = response.data?.slice(0, remainingCount) ?? []
+    results.push(...createDrawingResults(images, response.responseId))
   }
   return results
 }
