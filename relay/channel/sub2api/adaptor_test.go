@@ -2,6 +2,7 @@ package sub2api
 
 import (
 	"bytes"
+	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -88,4 +89,41 @@ func TestAdaptorInheritsMultipartImageEditSupport(t *testing.T) {
 	assert.Equal(t, "combine these images", upstreamRequest.PostForm.Get("prompt"))
 	assert.Empty(t, upstreamRequest.PostForm.Get("group"))
 	require.Len(t, upstreamRequest.MultipartForm.File["image[]"], 2)
+}
+
+func TestConvertClaudeRequestPreservesAdaptiveThinkingForCompatibleModel(t *testing.T) {
+	adaptor := &Adaptor{}
+	maxTokens := uint(8192)
+	temperature := 0.2
+	topP := 0.99
+	request := &dto.ClaudeRequest{
+		Model:        "gpt-5.6-sol",
+		MaxTokens:    &maxTokens,
+		Temperature:  &temperature,
+		TopP:         &topP,
+		Thinking:     &dto.Thinking{Type: "adaptive", Display: "summarized"},
+		OutputConfig: json.RawMessage(`{"effort":"xhigh","provider_option":true}`),
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hello"},
+		},
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.6-sol",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeSub2API,
+		},
+	}
+
+	converted, err := adaptor.ConvertClaudeRequest(nil, info, request)
+
+	require.NoError(t, err)
+	assert.Same(t, request, converted)
+	require.NotNil(t, request.Thinking)
+	assert.Equal(t, "adaptive", request.Thinking.Type)
+	assert.Equal(t, "summarized", request.Thinking.Display)
+	assert.JSONEq(t, `{"effort":"xhigh","provider_option":true}`, string(request.OutputConfig))
+	assert.Same(t, &temperature, request.Temperature)
+	assert.Same(t, &topP, request.TopP)
+	assert.Equal(t, "xhigh", info.ReasoningEffort)
+	assert.Equal(t, "gpt-5.6-sol", info.UpstreamModelName)
 }

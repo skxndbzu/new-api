@@ -21,28 +21,32 @@ import (
 
 // WebAssets holds the embedded dashboard frontend and docs assets.
 type WebAssets struct {
-	BuildFS          embed.FS
-	IndexPage        []byte
-	DocsBuildFS      embed.FS
+	BuildFS     embed.FS
+	IndexPage   []byte
+	DocsBuildFS embed.FS
 }
 
-func SetWebRouter(router *gin.Engine, assets WebAssets) {
+func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
 
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
-	router.Use(middleware.GlobalWebRateLimit())
-	router.Use(middleware.Cache())
 	setDocsRouter(router, assets.DocsBuildFS)
-	router.Use(static.Serve("/", frontendFS))
-	router.NoRoute(func(c *gin.Context) {
-		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
-			controller.RelayNotFound(c)
-			return
-		}
-		c.Header("Cache-Control", "no-cache")
-		c.Data(http.StatusOK, "text/html; charset=utf-8", assets.IndexPage)
-	})
+	router.NoRoute(
+		pluginDispatcher,
+		middleware.RouteTag("web"),
+		gzip.Gzip(gzip.DefaultCompression),
+		middleware.AccessTokenAudit(),
+		middleware.GlobalWebRateLimit(),
+		middleware.Cache(),
+		static.Serve("/", frontendFS),
+		func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+				controller.RelayNotFound(c)
+				return
+			}
+			c.Header("Cache-Control", "no-cache")
+			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.IndexPage)
+		},
+	)
 }
 
 func setDocsRouter(router *gin.Engine, docsBuildFS embed.FS) {

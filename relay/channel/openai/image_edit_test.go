@@ -105,12 +105,12 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 	})
 }
 
-func TestUpdateOpenAIImageCountUsesActualFixedPriceOutputCount(t *testing.T) {
+func TestImageCountUsesActualFixedPriceOutputCount(t *testing.T) {
 	info := &relaycommon.RelayInfo{}
 	info.PriceData.UsePrice = true
 	info.PriceData.AddOtherRatio("n", 5)
 
-	updateOpenAIImageCount(info, 3)
+	info.UpdateImageCount(3)
 
 	require.Equal(t, 3.0, info.PriceData.OtherRatios()["n"])
 }
