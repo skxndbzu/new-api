@@ -49,6 +49,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { BRAND_CONFIG } from '@/config/brand'
+import { getServerMessage } from '@/lib/server-error-message'
 import { statusQueryOptions } from '@/lib/status-query'
 import { cn } from '@/lib/utils'
 
@@ -266,7 +267,7 @@ export function PasskeySection(props: PasskeySectionProps) {
           setPendingDomainChange({
             values: normalized,
             preview: result.data,
-            notice: result.message,
+            notice: getServerMessage(result),
           })
           return
         }

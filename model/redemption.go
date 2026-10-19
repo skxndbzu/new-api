@@ -129,7 +129,7 @@ func SearchRedemptions(keyword string, status string, startIdx int, num int) (re
 
 func GetRedemptionById(id int) (*Redemption, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, common.NewMessage("ID is empty")
 	}
 	redemption := Redemption{Id: id}
 	var err error = nil
@@ -139,10 +139,10 @@ func GetRedemptionById(id int) (*Redemption, error) {
 
 func Redeem(key string, userId int) (quota int, err error) {
 	if key == "" {
-		return 0, errors.New("未提供兑换码")
+		return 0, errors.New("redemption code not provided")
 	}
 	if userId == 0 {
-		return 0, errors.New("无效的 user id")
+		return 0, errors.New("invalid user id")
 	}
 	redemption := &Redemption{}
 	inviterRewardUserId := 0
@@ -157,13 +157,13 @@ func Redeem(key string, userId int) (quota int, err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
-			return errors.New("无效的兑换码")
+			return errors.New("invalid redemption code")
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
-			return errors.New("该兑换码已被使用")
+			return errors.New("redemption code already used")
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-			return errors.New("该兑换码已过期")
+			return errors.New("redemption code expired")
 		}
 		if redemption.Quota <= 0 || redemption.Quota > common.MaxQuota {
 			return errors.New("无效的兑换额度")
@@ -215,7 +215,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
-			return errors.New("该兑换码已被使用")
+			return errors.New("redemption code already used")
 		}
 		if err := creditTopUpQuota(tx, userId, redemption.Quota, nil); err != nil {
 			return err
@@ -225,7 +225,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		}
 		result = tx.Model(&User{}).
 			Where("id = ? AND aff_quota <= ? AND aff_history <= ?", inviterRewardUserId, common.MaxQuota-inviterRewardQuota, common.MaxQuota-inviterRewardQuota).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"aff_quota":   gorm.Expr("aff_quota + ?", inviterRewardQuota),
 				"aff_history": gorm.Expr("aff_history + ?", inviterRewardQuota),
 			})
@@ -238,11 +238,11 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return nil
 	})
 	if err != nil {
-		common.SysError("redemption failed: " + err.Error())
+		common.SysError(common.LogText("redemption failed: %s", err.Error()))
 		return 0, ErrRedeemFailed
 	}
-	syncCreditUserQuotaCache(userId, redemption.Quota, "redemption")
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	syncCreditUserQuotaCache(userId, redemption.Quota, common.LogText("redemption"))
+	RecordLog(userId, LogTypeTopup, common.NewMessage("Topped up {{quota}} with a redemption code, code ID {{id}}", map[string]any{"quota": logger.FormatQuota(redemption.Quota), "id": redemption.Id}))
 	if inviterRewardQuota > 0 {
 		ratePercent := strconv.Itoa(inviterRewardRateBps / 100)
 		fractionalPercent := inviterRewardRateBps % 100
@@ -251,13 +251,15 @@ func Redeem(key string, userId int) (quota int, err error) {
 		} else if fractionalPercent != 0 {
 			ratePercent = fmt.Sprintf("%d.%d", inviterRewardRateBps/100, fractionalPercent/10)
 		}
-		RecordLog(inviterRewardUserId, LogTypeSystem, fmt.Sprintf(
-			"受邀用户ID %d兑换 %s，获得邀请返利 %s，返利比例 %s%%，兑换码ID %d",
-			userId,
-			logger.LogQuota(redemption.Quota),
-			logger.LogQuota(inviterRewardQuota),
-			ratePercent,
-			redemption.Id,
+		RecordLog(inviterRewardUserId, LogTypeSystem, common.NewMessage(
+			"Invited user {{user_id}} redeemed {{quota}}, earning an invitation reward of {{reward}} at {{rate}}%, code ID {{id}}",
+			map[string]any{
+				"user_id": userId,
+				"quota":   logger.FormatQuota(redemption.Quota),
+				"reward":  logger.FormatQuota(inviterRewardQuota),
+				"rate":    ratePercent,
+				"id":      redemption.Id,
+			},
 		))
 	}
 	return redemption.Quota, nil
@@ -301,7 +303,7 @@ func (redemption *Redemption) Delete() error {
 
 func DeleteRedemptionById(id int) (err error) {
 	if id == 0 {
-		return errors.New("id 为空！")
+		return common.NewMessage("ID is empty")
 	}
 	redemption := Redemption{Id: id}
 	err = DB.Where(redemption).First(&redemption).Error

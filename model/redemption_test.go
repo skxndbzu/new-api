@@ -167,6 +167,17 @@ func TestRedeemCreditsInviterRewardExactlyOnce(t *testing.T) {
 	assert.Equal(t, 300, redemption.InviterRewardRateBps)
 	assert.Equal(t, 1_500_000, redemption.InviterRewardQuota)
 
+	var rewardLog Log
+	require.NoError(t, LOG_DB.Where("user_id = ? AND type = ?", inviterId, LogTypeSystem).First(&rewardLog).Error)
+	var other struct {
+		ContentParts []common.Message `json:"content_parts"`
+	}
+	require.NoError(t, common.UnmarshalJsonStr(rewardLog.Other, &other))
+	require.Len(t, other.ContentParts, 1)
+	assert.Equal(t, "Invited user {{user_id}} redeemed {{quota}}, earning an invitation reward of {{reward}} at {{rate}}%, code ID {{id}}", other.ContentParts[0].Key)
+	assert.Equal(t, "3", other.ContentParts[0].Params["rate"])
+	assert.Equal(t, float64(userId), other.ContentParts[0].Params["user_id"])
+
 	_, err = Redeem(key, userId)
 	require.Error(t, err)
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
@@ -246,7 +257,7 @@ func TestRedeemRejectsWalletOverflow(t *testing.T) {
 	assert.Equal(t, common.MaxWalletQuota-10, user.Quota)
 
 	var redemption Redemption
-	require.NoError(t, DB.First(&redemption, "key = ?", key).Error)
+	require.NoError(t, DB.Where(map[string]any{"key": key}).First(&redemption).Error)
 	assert.Equal(t, common.RedemptionCodeStatusEnabled, redemption.Status)
 }
 
