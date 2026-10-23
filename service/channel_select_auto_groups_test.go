@@ -5,11 +5,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -62,6 +66,58 @@ func setupChannelSelectAutoGroupsTest(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func TestModerationExclusionAppliesToFirstRetryAffinityAndPin(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	createChannelSelectAutoGroupsChannel(t, db, 2101, "default", "gpt-review-test")
+	createChannelSelectAutoGroupsChannel(t, db, 2102, "default", "gpt-review-test")
+	model.InitChannelCache()
+	rule := operation_setting.ChannelAffinityRule{Name: "moderation-test", ModelRegex: []string{"^gpt-review-test$"}, PathRegex: []string{"/v1/chat/completions"}, KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Affinity-Key"}}, IncludeRuleName: true, IncludeModelName: true}
+	settings := operation_setting.GetChannelAffinitySetting()
+	previous := settings.Rules
+	settings.Rules = []operation_setting.ChannelAffinityRule{rule}
+	t.Cleanup(func() { settings.Rules = previous })
+	key := buildChannelAffinityCacheKeySuffix(rule, "gpt-review-test", "default", "bound-session")
+	require.NoError(t, getChannelAffinityCache().SetWithTTL(key, 2101, time.Minute))
+	t.Cleanup(func() { _, _ = getChannelAffinityCache().DeleteMany([]string{key}) })
+	for _, scenario := range []string{"first", "retry", "affinity", "pin", "none"} {
+		t.Run(scenario, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+			excluded := []int{2101}
+			if scenario == "none" {
+				excluded = append(excluded, 2102)
+			}
+			constraints := GetChannelConstraints(c)
+			constraints.AddFilter(dto.ChannelFilter{Kind: dto.FilterRequestModeration, ExcludedChannelIDs: excluded})
+			if scenario == "pin" {
+				constraints.AddPin(dto.ChannelPin{ChannelId: 2101, Source: dto.PinSourceToken})
+			}
+			if scenario == "affinity" {
+				c.Request.Header.Set("X-Affinity-Key", "bound-session")
+				RequestPolicy(c).SessionMode = "strict"
+			}
+			retry := 0
+			if scenario == "retry" {
+				retry = 1
+			}
+			channel, _, selectionError := SelectChannelForRequest(c, "gpt-review-test", &RetryParam{Ctx: c, TokenGroup: "default", ModelName: "gpt-review-test", RequestPath: "/v1/chat/completions", Retry: &retry})
+			if scenario == "pin" || scenario == "none" {
+				require.NotNil(t, selectionError)
+				assert.EqualValues(t, "request_moderation_restricted", selectionError.Code)
+				denied := RequestModerationSelectionError(c, &RetryParam{Ctx: c, TokenGroup: "default", ModelName: "gpt-review-test", Retry: &retry})
+				require.NotNil(t, denied)
+				assert.True(t, types.IsSkipRetryError(denied))
+				return
+			}
+			require.Nil(t, selectionError)
+			require.NotNil(t, channel)
+			assert.Equal(t, 2102, channel.Id)
+			assert.Nil(t, RequestModerationSelectionError(c, &RetryParam{Ctx: c, TokenGroup: "default", ModelName: "unavailable-unrelated-model", Retry: &retry}))
+		})
+	}
 }
 
 func createChannelSelectAutoGroupsChannel(t *testing.T, db *gorm.DB, id int, group, modelName string) {

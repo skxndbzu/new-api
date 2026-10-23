@@ -112,6 +112,7 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	applyRequestModerationConstraints(param.Ctx)
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
@@ -280,7 +281,13 @@ type ChannelSelectError struct {
 // eligible channel; every candidate must satisfy the request's channel
 // filters. The group the channel was chosen from is returned for auto-group
 // callers. The caller still applies SetupContextForSelectedChannel.
-func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
+func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (selected *model.Channel, group string, selectionError *ChannelSelectError) {
+	applyRequestModerationConstraints(c)
+	defer func() {
+		if selectionError != nil && (selectionError.FilterKind == dto.FilterRequestModeration || selectionError.NoAvailableChannel) && RequestModerationSelectionError(c, retry) != nil {
+			selectionError = &ChannelSelectError{StatusCode: http.StatusForbidden, Code: "request_moderation_restricted", Message: "request_moderation_restricted", FilterKind: dto.FilterRequestModeration}
+		}
+	}()
 	constraints := GetChannelConstraints(c)
 	if pin, found, overridden := constraints.ResolvedPin(); found {
 		for _, lost := range overridden {
@@ -314,8 +321,9 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			affinityUsable := false
 			preferred, err := model.CacheGetChannel(preferredChannelID)
 			affinitySatisfied := false
+			var affinityFilter dto.ChannelFilterKind
 			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
-				affinitySatisfied, _ = model.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
+				affinitySatisfied, affinityFilter = model.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
 			}
 			if affinitySatisfied {
 				if usingGroup == "auto" {
@@ -340,7 +348,7 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			if !affinityUsable && !ShouldKeepChannelAffinityOnChannelDisabled() {
 				ClearCurrentChannelAffinityCache(c)
 			}
-			if !affinityUsable && RequestPolicy(c).SessionMode == "strict" {
+			if !affinityUsable && affinityFilter != dto.FilterRequestModeration && RequestPolicy(c).SessionMode == "strict" {
 				return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "strict_session_binding_unavailable"}
 			}
 		}
